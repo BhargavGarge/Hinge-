@@ -9,7 +9,6 @@ import {
   TextInput,
 } from 'react-native';
 import React, { useState } from 'react';
-
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +26,7 @@ const EmailScreen = () => {
   const handleNext = () => {
     navigation.navigate('Password');
   };
+
   return (
     <SafeAreaView
       style={{
@@ -76,9 +76,9 @@ const EmailScreen = () => {
         <TextInput
           value={email}
           onChangeText={text => setEmail(text)}
-          autoFocus={true}
+          autoFocus
           placeholder="Enter your email"
-          placeholderTextColor={'#BEBEBE'}
+          placeholderTextColor="#BEBEBE"
           style={{
             width: 340,
             marginVertical: 10,
@@ -87,7 +87,7 @@ const EmailScreen = () => {
             borderBottomWidth: 1,
             paddingBottom: 10,
             fontFamily: 'GeezaPro-Bold',
-            fontSize: email ? 22 : 22,
+            fontSize: 22,
           }}
         />
 

@@ -8,10 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
-import React, { useRef, useState, useEffect } from 'react';
-
+import React, { useRef, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -19,69 +17,38 @@ type RootStackParamList = {
   DOBScreen: undefined;
   Location: undefined;
 };
+
 const DOBScreen = () => {
   const [day, setDay] = useState('');
   const [month, setMonth] = useState('');
   const [year, setYear] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'DOBScreen'>>();
-  const monthRef = useRef(null);
-  const yearRef = useRef(null);
-
-  interface TextInputRef {
-    focus: () => void;
-  }
+  const monthRef = useRef<TextInput>(null);
+  const yearRef = useRef<TextInput>(null);
 
   const handleDayChange = (text: string) => {
     setDay(text);
-    if (text.length == 2 && monthRef.current) {
-      (monthRef.current as unknown as TextInputRef).focus();
+    if (text.length === 2 && monthRef.current) {
+      monthRef.current.focus();
     }
   };
-
-  interface MonthChangeEvent {
-    nativeEvent: {
-      text: string;
-    };
-  }
 
   const handleMonthChange = (text: string) => {
     setMonth(text);
-    if (text.length == 2 && yearRef.current) {
-      (yearRef.current as unknown as TextInputRef).focus();
+    if (text.length === 2 && yearRef.current) {
+      yearRef.current.focus();
     }
   };
 
-  interface YearChangeEvent {
-    nativeEvent: {
-      text: string;
-    };
-  }
-
-  const handleyearChange = (text: string): void => {
+  const handleYearChange = (text: string) => {
     setYear(text);
   };
 
-  // useEffect(() => {
-  //   getRegistrationProgress('Birth').then(progressData => {
-  //     if(progressData){
-  //       const {dateOfBirth} = progressData;
-  //       const [dayValue,monthValue,yearValue] = dateOfBirth.split("/");
-  //       setDay(dayValue);
-  //       setMonth(monthValue);
-  //       setYear(yearValue);
-  //     }
-  //   })
-  // },[])
-
   const handleNext = () => {
-    // if(day.trim() !== '' && month.trim() !== '' && year.trim() !== ''){
-    //   const dateOfBirth = `${day}/${month}/${year}`;
-
-    //   saveRegistrationProgress('Birth',{dateOfBirth})
-    // }
     navigation.navigate('Location');
   };
+
   return (
     <SafeAreaView
       style={{
@@ -136,7 +103,7 @@ const DOBScreen = () => {
           <TextInput
             value={day}
             onChangeText={handleDayChange}
-            autoFocus={true}
+            autoFocus
             placeholder="DD"
             placeholderTextColor={'#BEBEBE'}
             style={{
@@ -144,18 +111,16 @@ const DOBScreen = () => {
               borderColor: 'black',
               padding: 10,
               width: 60,
-
               fontFamily: 'GeezaPro-Bold',
-              fontSize: day ? 22 : 22,
+              fontSize: 22,
             }}
+            maxLength={2}
+            keyboardType="numeric"
           />
           <TextInput
             value={month}
             onChangeText={handleMonthChange}
-            autoFocus={true}
-            keyboardType="numeric"
             ref={monthRef}
-            maxLength={2}
             placeholder="MM"
             placeholderTextColor={'#BEBEBE'}
             style={{
@@ -164,26 +129,27 @@ const DOBScreen = () => {
               padding: 10,
               width: 60,
               fontFamily: 'GeezaPro-Bold',
-              fontSize: month ? 22 : 22,
+              fontSize: 22,
             }}
+            maxLength={2}
+            keyboardType="numeric"
           />
           <TextInput
-            ref={yearRef}
             value={year}
-            onChangeText={handleyearChange}
-            autoFocus={true}
+            onChangeText={handleYearChange}
+            ref={yearRef}
             placeholder="YYYY"
             placeholderTextColor={'#BEBEBE'}
-            max={4}
-            keyboardType="numeric"
             style={{
               borderBottomWidth: 1,
               borderColor: 'black',
               padding: 10,
               width: 80,
               fontFamily: 'GeezaPro-Bold',
-              fontSize: year ? 22 : 22,
+              fontSize: 22,
             }}
+            maxLength={4}
+            keyboardType="numeric"
           />
         </View>
 
