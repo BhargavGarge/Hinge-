@@ -1,11 +1,135 @@
-import { StyleSheet, Text, View } from 'react-native';
-import React from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  SafeAreaView,
+  Platform,
+  TextInput,
+  Button,
+} from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type RootStackParamList = {
+  Birth: undefined;
+  Otp: undefined;
+};
+
+type OtpScreenRouteProp = {
+  params: {
+    email?: string;
+  };
+};
 
 const OtpScreen = () => {
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const inputs = useRef<Array<TextInput | null>>([]);
+  const route = useRoute() as OtpScreenRouteProp;
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList, 'Otp'>>();
+  const email = route?.params?.email;
+
+  // ✅ Navigate to Birth screen once OTP is complete
+  useEffect(() => {
+    if (otp.every(digit => digit !== '')) {
+      const otpCode = otp.join('');
+      console.log('Entered OTP:', otpCode);
+      navigation.navigate('Birth');
+    }
+  }, [otp]);
+
+  // ✅ Handle OTP input change
+  const handleChange = (text: string, index: number): void => {
+    const newOtp = [...otp];
+    newOtp[index] = text;
+    setOtp(newOtp);
+
+    if (text && index < 5) {
+      inputs.current[index + 1]?.focus();
+    }
+  };
+
+  // ✅ Handle backspace
+  const handleBackspace = (index: number) => {
+    if (index > 0) {
+      inputs.current[index - 1]?.focus();
+    }
+    const newOtp = [...otp];
+    newOtp[index] = '';
+    setOtp(newOtp);
+  };
+
   return (
-    <View>
-      <Text>OtpScreen</Text>
-    </View>
+    <SafeAreaView
+      style={{
+        paddingTop: Platform.OS === 'android' ? 35 : 0,
+        flex: 1,
+        backgroundColor: 'white',
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          height: 60,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginTop: 50,
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: '500' }}>
+          Verification code
+        </Text>
+        <Text style={{ fontSize: 14, color: 'gray', marginTop: 5 }}>
+          Enter the 6 digit code sent to your email
+        </Text>
+      </View>
+
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          width: '80%',
+          marginTop: 30,
+        }}
+      >
+        {otp.map((value, index) => (
+          <TextInput
+            key={index}
+            style={{
+              width: 45,
+              height: 45,
+              borderWidth: 1,
+              borderColor: '#ccc',
+              borderRadius: 8,
+              textAlign: 'center',
+              fontSize: 18,
+              color: '#333',
+            }}
+            ref={el => {
+              inputs.current[index] = el;
+            }}
+            keyboardType="number-pad"
+            maxLength={1}
+            value={value}
+            onChangeText={text => handleChange(text, index)}
+            onKeyPress={({ nativeEvent }) => {
+              if (nativeEvent.key === 'Backspace') {
+                handleBackspace(index);
+              }
+            }}
+            autoFocus={index === 0}
+          />
+        ))}
+      </View>
+
+      <View style={{ marginTop: 30 }} />
+
+      <Button
+        title="Resend Code"
+        onPress={() => setOtp(['', '', '', '', '', ''])}
+      />
+    </SafeAreaView>
   );
 };
 

@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
   BasicInfo: undefined;
-  NameScreen: undefined;
+  Name: undefined;
 };
 
 const { width, height } = Dimensions.get('window');
