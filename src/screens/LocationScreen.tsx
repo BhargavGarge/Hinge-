@@ -117,7 +117,7 @@ const LocationScreen = () => {
             }
           }
           formattedAddress = formattedAddress.trim().slice(0, -1);
-          setLocation(formattedAddress || 'Location found');
+          setLocation(formattedAddress || 'Location  not found');
         } else {
           setLocation('Address not found');
         }
