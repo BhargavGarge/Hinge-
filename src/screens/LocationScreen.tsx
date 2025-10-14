@@ -17,7 +17,7 @@ import Geolocation from 'react-native-geolocation-service';
 import MapView, { Marker } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Config from 'react-native-config'; // Make sure you install react-native-config
+import Config from 'react-native-config';
 
 type RootStackParamList = {
   Gender: undefined;
@@ -25,6 +25,7 @@ type RootStackParamList = {
 };
 
 const LocationScreen = () => {
+  const apikey = 'AIzaSyBa95Bo89ux9-6KDvt7f_qKkjBib_t4vuA';
   const [region, setRegion] = useState<
     | {
         latitude: number;
@@ -100,7 +101,7 @@ const LocationScreen = () => {
   const fetchAddress = (latitude: number, longitude: number): void => {
     const apiKey = Config.GOOGLE_API_KEY; // Store in .env file (GOOGLE_API_KEY=your_key)
     fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`,
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apikey}`,
     )
       .then((response: Response) => response.json())
       .then(data => {
@@ -195,7 +196,7 @@ const LocationScreen = () => {
             style={{
               width: '100%',
               height: 500,
-              marginTop: 20,
+              marginTop: 5,
               borderRadius: 5,
             }}
             region={region}
@@ -231,7 +232,7 @@ const LocationScreen = () => {
         <TouchableOpacity
           onPress={handleNext}
           activeOpacity={0.8}
-          style={{ marginTop: 30, marginLeft: 'auto' }}
+          style={{ marginBottom: 40, marginLeft: 'auto' }}
         >
           <Ionicons
             name="chevron-forward-circle-outline"
