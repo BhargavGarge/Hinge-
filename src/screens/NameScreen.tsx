@@ -26,6 +26,7 @@ const NameScreen = () => {
   const handleNext = () => {
     navigation.navigate('Email');
   };
+
   return (
     <SafeAreaView
       style={{
@@ -64,13 +65,16 @@ const NameScreen = () => {
         <View style={{ marginTop: 30 }}>
           <Text
             style={{
-              fontSize: 25,
-              fontWeight: 'bold',
-              fontFamily: 'GeezaPro-Bold',
+              marginTop: 30,
+              textAlign: 'center',
+              color: 'black',
+              fontWeight: '600',
+              fontSize: 22,
             }}
           >
             What's your name?
           </Text>
+
           <TextInput
             value={firstName}
             onChangeText={text => setFirstName(text)}
@@ -84,8 +88,9 @@ const NameScreen = () => {
               borderBottomColor: 'black',
               borderBottomWidth: 1,
               paddingBottom: 10,
-              fontFamily: 'GeezaPro-Bold',
-              fontSize: firstName ? 22 : 22,
+              // Removed problematic font family
+              fontSize: 22,
+              color: 'black', // Added to ensure text is visible
             }}
           />
           <TextInput
@@ -98,8 +103,9 @@ const NameScreen = () => {
               borderBottomColor: 'black',
               borderBottomWidth: 1,
               paddingBottom: 10,
-              fontFamily: 'GeezaPro-Bold',
-              fontSize: firstName ? 22 : 22,
+              // Removed problematic font family
+              fontSize: 22,
+              color: 'black', // Added to ensure text is visible
             }}
           />
           <Text style={{ fontSize: 15, color: 'gray', fontWeight: '500' }}>

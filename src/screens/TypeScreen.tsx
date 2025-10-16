@@ -8,9 +8,9 @@ import {
   Pressable,
   TouchableOpacity,
 } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FontAwesome6 from 'react-native-vector-icons/fontawesome';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 import { useNavigation } from '@react-navigation/native';
 
@@ -85,7 +85,7 @@ const TypeScreen = () => {
           >
             <Text style={{ fontSize: 15, fontWeight: '500' }}>Straight</Text>
             <Pressable onPress={() => setType('Straight')}>
-              <FontAwesome6
+              <FontAwesome
                 name="circle"
                 size={26}
                 color={type == 'Straight' ? '#581845' : '#F0F0F0'}
@@ -102,7 +102,7 @@ const TypeScreen = () => {
           >
             <Text style={{ fontSize: 15, fontWeight: '500' }}>Gay</Text>
             <Pressable onPress={() => setType('Gay')}>
-              <FontAwesome6
+              <FontAwesome
                 name="circle"
                 size={26}
                 color={type == 'Gay' ? '#581845' : '#F0F0F0'}
@@ -119,7 +119,7 @@ const TypeScreen = () => {
           >
             <Text style={{ fontSize: 15, fontWeight: '500' }}>Lesbian</Text>
             <Pressable onPress={() => setType('Lesbian')}>
-              <FontAwesome6
+              <FontAwesome
                 name="circle"
                 size={26}
                 color={type == 'Lesbian' ? '#581845' : '#F0F0F0'}
@@ -136,7 +136,7 @@ const TypeScreen = () => {
           >
             <Text style={{ fontSize: 15, fontWeight: '500' }}>Bisexual</Text>
             <Pressable onPress={() => setType('Bisexual')}>
-              <FontAwesome6
+              <FontAwesome
                 name="circle"
                 size={26}
                 color={type == 'Bisexual' ? '#581845' : '#F0F0F0'}

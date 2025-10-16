@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
-import FontAwesome from '@react-native-vector-icons/fontawesome';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -65,8 +64,9 @@ const LookingFor = () => {
           style={{
             fontSize: 25,
             fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
+            // Removed problematic font family
             marginTop: 15,
+            color: 'black', // Added explicit color
           }}
         >
           What's your dating intention?
@@ -82,9 +82,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Life Partner
             </Text>
             <Pressable onPress={() => setLookingFor('Life Partner')}>
@@ -101,9 +108,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Long-term relationship
             </Text>
             <Pressable onPress={() => setLookingFor('Long-term relationship')}>
@@ -122,9 +136,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Long-term relationship open to short
             </Text>
             <Pressable
@@ -149,9 +170,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Short-term relationship open to long
             </Text>
             <Pressable
@@ -176,9 +204,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Short-term relationship
             </Text>
             <Pressable onPress={() => setLookingFor('Short-term relationship')}>
@@ -199,9 +234,16 @@ const LookingFor = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // Added explicit color
+              }}
+            >
               Figuring out my dating goals
             </Text>
             <Pressable
@@ -228,7 +270,14 @@ const LookingFor = () => {
             }}
           >
             <Ionicons name="checkbox-outline" size={25} color="#900C3F" />
-            <Text style={{ fontSize: 15 }}>Visible on profile</Text>
+            <Text
+              style={{
+                fontSize: 15,
+                color: 'black', // Added explicit color
+              }}
+            >
+              Visible on profile
+            </Text>
           </View>
         </View>
 

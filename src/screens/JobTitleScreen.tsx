@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import React, { useState, useEffect } from 'react';
-import Ionicons from 'react-native-vector-icons/ionicons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -46,7 +46,7 @@ const JobTitleScreen = () => {
               alignItems: 'center',
             }}
           >
-            <Ionicons name="lan" size={23} color="black" />
+            <Ionicons name="briefcase-outline" size={23} color="black" />
           </View>
           <Image
             style={{ width: 100, height: 40 }}
@@ -60,8 +60,9 @@ const JobTitleScreen = () => {
           style={{
             fontSize: 25,
             fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
+            // Removed problematic font family
             marginTop: 15,
+            color: 'black', // Added explicit color
           }}
         >
           What's your job title?
@@ -71,15 +72,17 @@ const JobTitleScreen = () => {
           autoFocus={true}
           value={jobTitle}
           onChangeText={text => setJobTitle(text)}
-          placeholder="HomeTown"
+          placeholder="Job title" // Fixed placeholder text
+          placeholderTextColor="#BEBEBE" // Added placeholder color
           style={{
             width: 340,
             marginTop: 25,
             borderBottomColor: 'black',
             borderBottomWidth: 1,
             paddingBottom: 10,
-            fontFamily: 'GeezaPro-Bold',
-            fontSize: jobTitle ? 22 : 22,
+            // Removed problematic font family
+            fontSize: 22,
+            color: 'black', // Added explicit text color
           }}
         />
 

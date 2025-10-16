@@ -85,13 +85,14 @@ const PasswordScreen = () => {
 
         <Text
           style={{
-            fontSize: 25,
-            fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
-            marginTop: 15,
+            marginTop: 30,
+            textAlign: 'center',
+            color: 'black',
+            fontWeight: '600',
+            fontSize: 22,
           }}
         >
-          Please choose a password
+          Choose Password?
         </Text>
 
         <TextInput
@@ -108,7 +109,7 @@ const PasswordScreen = () => {
             borderBottomColor: 'black',
             borderBottomWidth: 1,
             paddingBottom: 10,
-            fontFamily: 'GeezaPro-Bold',
+            color: 'black',
             fontSize: password ? 22 : 22,
           }}
         />

@@ -13,7 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useNavigation } from '@react-navigation/native';
 
-import FontAwesome from '@react-native-vector-icons/fontawesome';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
@@ -63,8 +63,9 @@ const HomeTownScreen = () => {
           style={{
             fontSize: 25,
             fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
+            // Removed problematic font family
             marginTop: 15,
+            color: 'black', // Added explicit color
           }}
         >
           Where's your hometown?
@@ -75,14 +76,16 @@ const HomeTownScreen = () => {
           value={hometown}
           onChangeText={text => setHomeTown(text)}
           placeholder="HomeTown"
+          placeholderTextColor="#BEBEBE" // Added placeholder color
           style={{
             width: 340,
             marginTop: 25,
             borderBottomColor: 'black',
             borderBottomWidth: 1,
             paddingBottom: 10,
-            fontFamily: 'GeezaPro-Bold',
-            fontSize: hometown ? 22 : 22,
+            // Removed problematic font family
+            fontSize: 22,
+            color: 'black', // Added explicit text color
           }}
         />
 

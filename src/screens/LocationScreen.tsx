@@ -168,10 +168,11 @@ const LocationScreen = () => {
 
         <Text
           style={{
-            fontSize: 25,
-            fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
-            marginTop: 15,
+            marginTop: 30,
+            textAlign: 'center',
+            color: 'black',
+            fontWeight: '600',
+            fontSize: 22,
           }}
         >
           Where do you live?
