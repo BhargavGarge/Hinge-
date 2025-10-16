@@ -79,16 +79,16 @@ const DOBScreen = () => {
             }}
           />
         </View>
-
         <Text
           style={{
-            fontSize: 25,
-            fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
-            marginTop: 15,
+            marginTop: 30,
+            textAlign: 'center',
+            color: 'black',
+            fontWeight: '600',
+            fontSize: 22,
           }}
         >
-          What's your date of birth?
+          What's your DOB?
         </Text>
 
         <View
@@ -111,7 +111,7 @@ const DOBScreen = () => {
               borderColor: 'black',
               padding: 10,
               width: 60,
-              fontFamily: 'GeezaPro-Bold',
+              color: 'black',
               fontSize: 22,
             }}
             maxLength={2}
@@ -128,7 +128,7 @@ const DOBScreen = () => {
               borderColor: 'black',
               padding: 10,
               width: 60,
-              fontFamily: 'GeezaPro-Bold',
+              color: 'black',
               fontSize: 22,
             }}
             maxLength={2}
@@ -145,7 +145,7 @@ const DOBScreen = () => {
               borderColor: 'black',
               padding: 10,
               width: 80,
-              fontFamily: 'GeezaPro-Bold',
+              color: 'black',
               fontSize: 22,
             }}
             maxLength={4}

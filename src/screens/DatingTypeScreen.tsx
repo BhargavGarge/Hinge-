@@ -8,9 +8,9 @@ import {
   Pressable,
   TouchableOpacity,
 } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import FontAwesome6 from 'react-native-vector-icons/fontawesome';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,11 +23,11 @@ const DatingType = () => {
   const [datingPreferences, setDatingPreferences] = useState<string[]>([]);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Dating'>>();
-  interface ChooseOption {
-    (option: string): void;
+  interface DatingPreferenceOption {
+    option: string;
   }
 
-  const chooseOption: ChooseOption = option => {
+  const chooseOption = (option: string): void => {
     if (datingPreferences.includes(option)) {
       setDatingPreferences(
         datingPreferences.filter(
@@ -63,7 +63,7 @@ const DatingType = () => {
               alignItems: 'center',
             }}
           >
-            <Ionicons name="gender-male" size={23} color="black" />
+            <Ionicons name="heart-outline" size={23} color="black" />
           </View>
           <Image
             style={{ width: 100, height: 40 }}
@@ -75,16 +75,24 @@ const DatingType = () => {
 
         <Text
           style={{
-            fontSize: 25,
-            fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
-            marginTop: 15,
+            marginTop: 30,
+            textAlign: 'center',
+            color: 'black',
+            fontWeight: '600',
+            fontSize: 20,
           }}
         >
-          Who do you want to date?
+          Who do you want to Date?
         </Text>
 
-        <Text style={{ fontSize: 15, marginTop: 20, color: 'gray' }}>
+        <Text
+          style={{
+            fontSize: 15,
+            marginTop: 20,
+            color: 'gray',
+            textAlign: 'center',
+          }}
+        >
           Select all people you're open to meeting
         </Text>
 
@@ -94,11 +102,20 @@ const DatingType = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>Men</Text>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // EXPLICITLY SET BLACK COLOR
+              }}
+            >
+              Men
+            </Text>
             <Pressable onPress={() => chooseOption('Men')}>
-              <FontAwesome6
+              <FontAwesome5
                 name="circle"
                 size={26}
                 color={
@@ -113,11 +130,20 @@ const DatingType = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>Women</Text>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // EXPLICITLY SET BLACK COLOR
+              }}
+            >
+              Women
+            </Text>
             <Pressable onPress={() => chooseOption('Women')}>
-              <FontAwesome6
+              <FontAwesome5
                 name="circle"
                 size={26}
                 color={
@@ -132,11 +158,20 @@ const DatingType = () => {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
+              paddingVertical: 8, // Added padding for better touch area
             }}
           >
-            <Text style={{ fontSize: 15, fontWeight: '500' }}>Everyone</Text>
+            <Text
+              style={{
+                fontSize: 17,
+                fontWeight: '500',
+                color: 'black', // EXPLICITLY SET BLACK COLOR
+              }}
+            >
+              Everyone
+            </Text>
             <Pressable onPress={() => chooseOption('Everyone')}>
-              <FontAwesome6
+              <FontAwesome5
                 name="circle"
                 size={26}
                 color={
@@ -155,7 +190,16 @@ const DatingType = () => {
             }}
           >
             <Ionicons name="checkbox-outline" size={25} color="#900C3F" />
-            <Text style={{ fontSize: 15 }}>Visible on profile</Text>
+
+            <Text
+              style={{
+                color: 'black',
+                fontWeight: '600',
+                fontSize: 15, // Increased from 10 to 15 for better readability
+              }}
+            >
+              Visible on Profile?
+            </Text>
           </View>
         </View>
 

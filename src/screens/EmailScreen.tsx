@@ -60,13 +60,14 @@ const EmailScreen = () => {
 
         <Text
           style={{
-            fontSize: 25,
-            fontWeight: 'bold',
-            fontFamily: 'GeezaPro-Bold',
-            marginTop: 15,
+            marginTop: 30,
+            textAlign: 'center',
+            color: 'black',
+            fontWeight: '600',
+            fontSize: 22,
           }}
         >
-          Provide your email
+          What's your Email?
         </Text>
 
         <Text style={{ marginTop: 10, fontSize: 15, color: 'gray' }}>
@@ -86,7 +87,7 @@ const EmailScreen = () => {
             borderBottomColor: 'black',
             borderBottomWidth: 1,
             paddingBottom: 10,
-            fontFamily: 'GeezaPro-Bold',
+            color: 'black',
             fontSize: 22,
           }}
         />
