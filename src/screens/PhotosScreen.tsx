@@ -35,7 +35,7 @@ const PhotoScreen = () => {
   const pickImageFromGallery = () => {
     const options = {
       mediaType: 'photo' as const,
-      quality: 'high' as const,
+      quality: 1, // must be a number between 0 and 1
       maxWidth: 500,
       maxHeight: 500,
     };
