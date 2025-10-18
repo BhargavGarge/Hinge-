@@ -19,6 +19,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { launchImageLibrary } from 'react-native-image-picker';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 type RootStackParamList = {
   Photos: undefined;
   Prompts: undefined;
@@ -92,17 +96,18 @@ const PhotoScreen = () => {
     setImageUrls(updatedUrls);
   };
 
+  useEffect(() => {
+    getRegistrationProgress('Photos').then(progressData => {
+      if (progressData) {
+        setImageUrls(progressData.imageUrls);
+      }
+    });
+  }, []);
   const handleNext = () => {
-    if (imageUrls.filter(url => url !== '').length < 4) {
-      Alert.alert(
-        'More Photos Needed',
-        'Please add at least 4 photos to continue',
-      );
-      return;
-    }
-
+    saveRegistrationProgress('Photos', { imageUrls });
     navigation.navigate('Prompts');
   };
+  console.log('images', imageUrls);
 
   const filledImageCount = imageUrls.filter(url => url !== '').length;
 

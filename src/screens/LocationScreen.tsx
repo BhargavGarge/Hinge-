@@ -18,6 +18,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Config from 'react-native-config';
+import { saveRegistrationProgress } from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   Gender: undefined;
@@ -130,8 +131,10 @@ const LocationScreen = () => {
   };
 
   const handleNext = () => {
+    saveRegistrationProgress('Location', { location });
     navigation.navigate('Gender');
   };
+  console.log('Location', location);
 
   return (
     <SafeAreaView

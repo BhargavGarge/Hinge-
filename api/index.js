@@ -65,11 +65,73 @@ app.post('/register', async (req, res) => {
     };
 
     await docClient.send(new PutCommand(params));
-    const secretKey = '';
+    const secretKey = 'your-super-secret-key';
     const token = jwt.sign({ userId: newUser.userId }, secretKey);
 
     res.status(200).json({ token });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+app.post('/sendOtp', async (req, res) => {
+  const { email, password } = req.body;
+
+  console.log('email', email);
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  const signUpParams = {
+    ClientId: '403huop09kutijeuofr35ec5jf',
+    Username: email,
+    Password: password,
+    UserAttributes: [{ Name: 'email', Value: email }],
+  };
+
+  try {
+    const command = new SignUpCommand(signUpParams);
+    await cognitoClient.send(command);
+
+    res.status(200).json({ message: 'OTP sent to email!' });
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    res.status(400).json({ error: 'Failed to send OTP. Please try again.' });
+  }
+});
+app.post('/resendOtp', async (req, res) => {
+  const { email } = req.body;
+
+  const resendParams = {
+    ClientId: '',
+    Username: email,
+  };
+
+  try {
+    const command = new ResendConfirmationCodeCommand(resendParams);
+    await cognitoClient.send(command);
+
+    res.status(200).json({ message: 'New otp sent to mail' });
+  } catch (error) {
+    console.log('Error', error);
+  }
+});
+
+app.post('/confirmSignup', async (req, res) => {
+  const { email, otpCode } = req.body;
+
+  const confirmParams = {
+    ClientId: '',
+    Username: email,
+    ConfirmationCode: otpCode,
+  };
+
+  try {
+    const command = new ConfirmSignUpCommand(confirmParams);
+    await cognitoClient.send(command);
+
+    res.status(200).json({ message: 'Email verified successfully!' });
+  } catch (error) {
+    console.log('Error confirming Sign Up', error);
   }
 });

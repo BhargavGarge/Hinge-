@@ -8,11 +8,14 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 type RootStackParamList = {
   DOBScreen: undefined;
   Location: undefined;
@@ -44,8 +47,24 @@ const DOBScreen = () => {
   const handleYearChange = (text: string) => {
     setYear(text);
   };
+  useEffect(() => {
+    getRegistrationProgress('Birth').then(progressData => {
+      if (progressData) {
+        const { dateOfBirth } = progressData;
+        const [dayValue, monthValue, yearValue] = dateOfBirth.split('/');
+        setDay(dayValue);
+        setMonth(monthValue);
+        setYear(yearValue);
+      }
+    });
+  }, []);
 
   const handleNext = () => {
+    if (day.trim() !== '' && month.trim() !== '' && year.trim() !== '') {
+      const dateOfBirth = `${day}/${month}/${year}`;
+
+      saveRegistrationProgress('Birth', { dateOfBirth });
+    }
     navigation.navigate('Location');
   };
 

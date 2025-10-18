@@ -8,13 +8,17 @@ import {
   Pressable,
   TouchableOpacity,
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 import { useNavigation } from '@react-navigation/native';
 
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   Type: undefined;
@@ -25,7 +29,17 @@ const TypeScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Type'>>();
 
+  useEffect(() => {
+    getRegistrationProgress('Type').then(progressData => {
+      if (progressData) {
+        setType(progressData.type || '');
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (type.trim() != '') {
+      saveRegistrationProgress('Type', { type });
+    }
     navigation.navigate('Dating');
   };
   return (

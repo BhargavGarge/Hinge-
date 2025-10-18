@@ -15,6 +15,10 @@ import { useNavigation } from '@react-navigation/native';
 
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   Hometown: undefined;
@@ -25,7 +29,17 @@ const HomeTownScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Hometown'>>();
 
+  useEffect(() => {
+    getRegistrationProgress('Hometown').then(progressData => {
+      if (progressData) {
+        setHomeTown(progressData.hometown);
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (hometown.trim() !== '') {
+      saveRegistrationProgress('Hometown', { hometown });
+    }
     navigation.navigate('Workplace');
   };
   return (

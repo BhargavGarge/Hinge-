@@ -10,6 +10,8 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import axios from 'axios';
+import { BASE_URL } from '../url/url';
 
 type RootStackParamList = {
   Birth: undefined;
@@ -30,34 +32,70 @@ const OtpScreen = () => {
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Otp'>>();
   const email = route?.params?.email;
 
-  // ✅ Navigate to Birth screen once OTP is complete
+  const handleConfirmSignUp = async () => {
+    console.log('working');
+
+    const otpCode = otp.join('');
+    console.log('OTP ', otpCode);
+    if (!email || !otpCode) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${BASE_URL}/confirmSignup`, {
+        email,
+        otpCode,
+      });
+
+      if (response.status == 200) {
+        console.log('response', response);
+        navigation.navigate('Birth');
+      }
+    } catch (error) {
+      console.log('Error confirming the signup', error);
+    }
+
+    // navigation.navigate("Birth")
+  };
+
   useEffect(() => {
     if (otp.every(digit => digit !== '')) {
-      const otpCode = otp.join('');
-      console.log('Entered OTP:', otpCode);
-      navigation.navigate('Birth');
+      handleConfirmSignUp();
     }
   }, [otp]);
 
-  // ✅ Handle OTP input change
-  const handleChange = (text: string, index: number): void => {
+  const handleChange = (text, index) => {
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
 
     if (text && index < 5) {
-      inputs.current[index + 1]?.focus();
+      inputs.current[index + 1].focus();
     }
   };
-
-  // ✅ Handle backspace
-  const handleBackspace = (index: number) => {
-    if (index > 0) {
-      inputs.current[index - 1]?.focus();
+  const handleBackspace = (text, index) => {
+    if (!text && index > 0) {
+      inputs.current[index - 1].focus();
     }
+
     const newOtp = [...otp];
-    newOtp[index] = '';
+    newOtp[index] = text;
     setOtp(newOtp);
+  };
+
+  console.log('OTP', otp);
+  const handleResendOtp = async () => {
+    setOtp(['', '', '', '', '', '']);
+
+    try {
+      const response = await axios.post(`${BASE_URL}/resendOtp`, {
+        email: email,
+      });
+
+      console.log('response', response.data);
+    } catch (error) {
+      console.log('Error resending the otp', error);
+    }
   };
 
   return (

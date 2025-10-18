@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { saveRegistrationProgress } from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   ShowPrompts: {
@@ -57,6 +58,7 @@ const PromptsScreen = () => {
 
     if (allFilled) {
       setTimeout(() => {
+        saveRegistrationProgress('Prompts', { prompts: prompts });
         navigation.navigate('PreFinal');
       }, 600); // smooth delay for UI feedback
     }
