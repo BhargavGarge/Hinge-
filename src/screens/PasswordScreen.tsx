@@ -14,6 +14,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useState } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { saveRegistrationProgress } from '../utils/registrationUtlis';
+import axios from 'axios';
+import { BASE_URL } from '../url/url';
 
 type RootStackParamList = {
   Password: undefined;
@@ -24,33 +27,30 @@ const PasswordScreen = () => {
   const route = useRoute();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Password'>>();
-  // const email = route?.params?.email;
-  // const handleSendOtp = async () => {
-  //   if (!email) {
-  //     return;
-  //   }
+  const email = route?.params?.email;
+  const handleSendOtp = async () => {
+    if (!email) {
+      return;
+    }
 
-  //   try {
-  //     const response = await axios.post(`${BASE_URL}/sendOtp`, {
-  //       email,
-  //       password,
-  //     });
-  //     console.log(response.data.message);
-  //     navigation.navigate('Otp', { email });
-  //   } catch (error) {
-  //     console.log('Error sending the OTP', error);
-  //   }
-  // };
+    try {
+      const response = await axios.post(`${BASE_URL}/sendOtp`, {
+        email,
+        password,
+      });
+      console.log(response.data.message);
+      navigation.navigate('Otp', { email });
+    } catch (error) {
+      console.log('Error sending the OTP', error);
+    }
+  };
   const handleNext = () => {
-    // if (password.trim() !== '') {
-    //   saveRegistrationProgress('Password', { password });
-    // }
-    navigation.navigate(
-      'Otp',
-      //  {email}
-    );
+    if (password.trim() !== '') {
+      saveRegistrationProgress('Password', { password });
+    }
+    navigation.navigate('Otp', { email });
 
-    // handleSendOtp();
+    handleSendOtp();
   };
   return (
     <SafeAreaView

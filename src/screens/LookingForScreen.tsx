@@ -14,6 +14,10 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   LookingFor: undefined;
@@ -25,10 +29,20 @@ const LookingFor = () => {
     useNavigation<
       NativeStackNavigationProp<RootStackParamList, 'LookingFor'>
     >();
-
+  useEffect(() => {
+    getRegistrationProgress('LookingFor').then(progressData => {
+      if (progressData) {
+        setLookingFor(progressData.lookingFor || '');
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (lookingFor.trim() !== '') {
+      saveRegistrationProgress('LookingFor', { lookingFor });
+    }
     navigation.navigate('Hometown');
   };
+
   return (
     <SafeAreaView
       style={{

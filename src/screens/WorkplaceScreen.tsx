@@ -14,6 +14,10 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   JobTitle: undefined;
@@ -24,7 +28,17 @@ const WorkPlace = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Workplace'>>();
 
+  useEffect(() => {
+    getRegistrationProgress('WorkPlace').then(progressData => {
+      if (progressData) {
+        setWorkPlace(progressData.workPlace);
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (workPlace.trim() !== '') {
+      saveRegistrationProgress('WorkPlace', { workPlace });
+    }
     navigation.navigate('JobTitle');
   };
   return (

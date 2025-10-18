@@ -8,12 +8,16 @@ import {
   Pressable,
   TouchableOpacity,
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   Dating: undefined;
@@ -27,19 +31,26 @@ const DatingType = () => {
     option: string;
   }
 
-  const chooseOption = (option: string): void => {
+  const chooseOption = option => {
     if (datingPreferences.includes(option)) {
       setDatingPreferences(
-        datingPreferences.filter(
-          (selectedOption: string) => selectedOption !== option,
-        ),
+        datingPreferences.filter(selectedOption => selectedOption !== option),
       );
     } else {
       setDatingPreferences([...datingPreferences, option]);
     }
   };
-
+  useEffect(() => {
+    getRegistrationProgress('Dating').then(progressData => {
+      if (progressData) {
+        setDatingPreferences(progressData.datingPreferences || []);
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (datingPreferences.length > 0) {
+      saveRegistrationProgress('Dating', { datingPreferences });
+    }
     navigation.navigate('LookingFor');
   };
   return (

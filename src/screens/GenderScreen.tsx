@@ -8,24 +8,37 @@ import {
   Image,
   Pressable,
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   Gender: undefined;
-  Dating: undefined;
+  Type: undefined;
 };
 
 const GenderScreen = () => {
   const [gender, setGender] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Gender'>>();
-
+  useEffect(() => {
+    getRegistrationProgress('Gender').then(progressData => {
+      if (progressData) {
+        setGender(progressData.gender || '');
+      }
+    });
+  }, []);
   const handleNext = () => {
-    navigation.navigate('Dating');
+    if (gender.trim() != '') {
+      saveRegistrationProgress('Gender', { gender });
+    }
+    navigation.navigate('Type');
   };
 
   const options = ['Men', 'Women', 'Non Binary'];

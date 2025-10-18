@@ -12,7 +12,10 @@ import React, { useState, useEffect } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 type RootStackParamList = {
   Name: undefined;
   Email: undefined;
@@ -22,8 +25,17 @@ const NameScreen = () => {
   const [firstName, setFirstName] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
+  useEffect(() => {
+    getRegistrationProgress('Name').then(progressData => {
+      if (progressData) {
+        setFirstName(progressData.firstName || '');
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (firstName.trim() !== '') {
+      saveRegistrationProgress('Name', { firstName });
+    }
     navigation.navigate('Email');
   };
 

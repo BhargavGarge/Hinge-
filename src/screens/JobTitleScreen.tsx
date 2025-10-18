@@ -13,6 +13,10 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   JobTitle: undefined;
@@ -22,7 +26,17 @@ const JobTitleScreen = () => {
   const [jobTitle, setJobTitle] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'JobTitle'>>();
+  useEffect(() => {
+    getRegistrationProgress('JobTitle').then(progressData => {
+      if (progressData) {
+        setJobTitle(progressData.jobTitle);
+      }
+    });
+  }, []);
   const handleNext = () => {
+    if (jobTitle.trim() !== '') {
+      saveRegistrationProgress('JobTitle', { jobTitle });
+    }
     navigation.navigate('Photos');
   };
   return (

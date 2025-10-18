@@ -8,25 +8,38 @@ import {
   Image,
   TextInput,
 } from 'react-native';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
+import {
+  getRegistrationProgress,
+  saveRegistrationProgress,
+} from '../utils/registrationUtlis';
 type RootStackParamList = {
   Email: undefined;
-  Password: undefined;
+  Password: { email: string };
 };
 
 const EmailScreen = () => {
   const [email, setEmail] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Email'>>();
-
+  useEffect(() => {
+    getRegistrationProgress('Email').then(progressData => {
+      if (progressData) {
+        setEmail(progressData.email || '');
+      }
+    });
+  }, []);
   const handleNext = () => {
-    navigation.navigate('Password');
+    if (email.trim() !== '') {
+      saveRegistrationProgress('Email', { email });
+    }
+    navigation.navigate('Password', {
+      email: email,
+    });
   };
-
   return (
     <SafeAreaView
       style={{
