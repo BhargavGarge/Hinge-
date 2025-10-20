@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,17 +7,13 @@ import {
   Platform,
   TouchableOpacity,
   Image,
-  PermissionsAndroid,
-  ActivityIndicator,
+  TextInput,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import Geolocation from 'react-native-geolocation-service';
-
-import MapView, { Marker } from 'react-native-maps';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Config from 'react-native-config';
 import { saveRegistrationProgress } from '../utils/registrationUtlis';
 
 type RootStackParamList = {
@@ -26,115 +22,19 @@ type RootStackParamList = {
 };
 
 const LocationScreen = () => {
-  const apikey = 'AIzaSyBa95Bo89ux9-6KDvt7f_qKkjBib_t4vuA';
-  const [region, setRegion] = useState<
-    | {
-        latitude: number;
-        longitude: number;
-        latitudeDelta: number;
-        longitudeDelta: number;
-      }
-    | undefined
-  >(undefined);
-
+  const [location, setLocation] = useState('');
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Location'>>();
 
-  const [location, setLocation] = useState('Loading...');
-  const [loading, setLoading] = useState(true);
-
-  // ✅ Request location permission (Android 12+ support)
-  const requestLocationPermission = async (): Promise<boolean> => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Location Permission',
-            message: 'This app needs access to your location.',
-            buttonPositive: 'OK',
-          },
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn(err);
-        return false;
-      }
-    }
-    return true; // iOS permissions handled via Info.plist
-  };
-
-  // ✅ Get current location on mount
-  useEffect(() => {
-    (async () => {
-      const hasPermission = await requestLocationPermission();
-      if (!hasPermission) {
-        setLoading(false);
-        setLocation('Permission denied');
-        return;
-      }
-
-      Geolocation.getCurrentPosition(
-        position => {
-          const { latitude, longitude } = position.coords;
-
-          const initialRegion = {
-            latitude,
-            longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          };
-
-          setRegion(initialRegion);
-          fetchAddress(latitude, longitude);
-        },
-        error => {
-          console.log('Error fetching location:', error);
-          setLocation('Unable to fetch location');
-          setLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-      );
-    })();
-  }, []);
-
-  // ✅ Convert coordinates to address using Google Geocoding API
-  const fetchAddress = (latitude: number, longitude: number): void => {
-    const apiKey = Config.GOOGLE_API_KEY; // Store in .env file (GOOGLE_API_KEY=your_key)
-    fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apikey}`,
-    )
-      .then((response: Response) => response.json())
-      .then(data => {
-        if (data.results.length > 0) {
-          const addressComponents = data.results[0].address_components;
-          let formattedAddress = '';
-          for (let component of addressComponents) {
-            if (component.types.includes('sublocality_level_1')) {
-              formattedAddress += component.long_name + ', ';
-            }
-            if (component.types.includes('locality')) {
-              formattedAddress += component.long_name + ', ';
-            }
-          }
-          formattedAddress = formattedAddress.trim().slice(0, -1);
-          setLocation(formattedAddress || 'Location  not found');
-        } else {
-          setLocation('Address not found');
-        }
-      })
-      .catch(error => {
-        console.log('Error fetching address:', error);
-        setLocation('Error fetching address');
-      })
-      .finally(() => setLoading(false));
-  };
-
   const handleNext = () => {
+    if (!location.trim()) {
+      Alert.alert('Please enter your location');
+      return;
+    }
+
     saveRegistrationProgress('Location', { location });
     navigation.navigate('Gender');
   };
-  console.log('Location', location);
 
   return (
     <SafeAreaView
@@ -181,69 +81,42 @@ const LocationScreen = () => {
           Where do you live?
         </Text>
 
-        {/* Map Section */}
-        {loading ? (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <ActivityIndicator size="large" color="#581845" />
-            <Text style={{ marginTop: 10, color: 'gray' }}>
-              Fetching your location...
-            </Text>
-          </View>
-        ) : region ? (
-          <MapView
-            style={{
-              width: '100%',
-              height: 500,
-              marginTop: 5,
-              borderRadius: 5,
-            }}
-            region={region}
-          >
-            <Marker coordinate={region}>
-              <View
-                style={{
-                  backgroundColor: 'black',
-                  padding: 12,
-                  borderRadius: 30,
-                }}
-              >
-                <Text
-                  style={{
-                    textAlign: 'center',
-                    fontSize: 14,
-                    fontWeight: '500',
-                    color: 'white',
-                  }}
-                >
-                  {location}
-                </Text>
-              </View>
-            </Marker>
-          </MapView>
-        ) : (
-          <Text style={{ marginTop: 20, color: 'gray' }}>
-            Unable to load map
-          </Text>
-        )}
+        {/* Manual Input Box */}
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your city or address"
+          placeholderTextColor="#aaa"
+          value={location}
+          onChangeText={setLocation}
+        />
+
+        <Text
+          style={{
+            marginTop: 10,
+            color: 'gray',
+            textAlign: 'center',
+            fontSize: 14,
+          }}
+        >
+          Example: Berlin, Germany
+        </Text>
 
         {/* Next Button */}
-        <TouchableOpacity
-          onPress={handleNext}
-          activeOpacity={0.8}
-          style={{ marginBottom: 40, marginLeft: 'auto' }}
+        <View
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            alignItems: 'flex-end',
+          }}
         >
-          <Ionicons
-            name="chevron-forward-circle-outline"
-            size={50}
-            color="#581845"
-          />
-        </TouchableOpacity>
+          <TouchableOpacity onPress={handleNext} activeOpacity={0.8}>
+            <Ionicons
+              name="chevron-forward-circle-outline"
+              size={55}
+              color="#581845"
+            />
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -251,4 +124,14 @@ const LocationScreen = () => {
 
 export default LocationScreen;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  input: {
+    marginTop: 40,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    color: '#000',
+  },
+});

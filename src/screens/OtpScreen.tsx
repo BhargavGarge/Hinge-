@@ -1,3 +1,4 @@
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,76 +7,54 @@ import {
   Platform,
   TextInput,
   Button,
+  Alert,
 } from 'react-native';
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import axios from 'axios';
-import { BASE_URL } from '../url/url';
 
 type RootStackParamList = {
   Birth: undefined;
   Otp: undefined;
 };
 
-type OtpScreenRouteProp = {
-  params: {
-    email?: string;
-  };
-};
-
 const OtpScreen = () => {
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const inputs = useRef<Array<TextInput | null>>([]);
-  const route = useRoute() as OtpScreenRouteProp;
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Otp'>>();
-  const email = route?.params?.email;
 
-  const handleConfirmSignUp = async () => {
-    console.log('working');
-
+  const handleConfirmSignUp = () => {
     const otpCode = otp.join('');
-    console.log('OTP ', otpCode);
-    if (!email || !otpCode) {
-      return;
+    console.log('Entered OTP:', otpCode);
+
+    if (otpCode.length === 6) {
+      console.log('✅ Navigating to Birth screen');
+      navigation.navigate('Birth');
+    } else {
+      Alert.alert('Incomplete OTP', 'Please enter all 6 digits');
     }
-
-    try {
-      const response = await axios.post(`${BASE_URL}/confirmSignup`, {
-        email,
-        otpCode,
-      });
-
-      if (response.status == 200) {
-        console.log('response', response);
-        navigation.navigate('Birth');
-      }
-    } catch (error) {
-      console.log('Error confirming the signup', error);
-    }
-
-    // navigation.navigate("Birth")
   };
 
+  // Auto-navigate when all 6 digits are entered
   useEffect(() => {
     if (otp.every(digit => digit !== '')) {
       handleConfirmSignUp();
     }
   }, [otp]);
 
-  const handleChange = (text, index) => {
+  const handleChange = (text: string, index: number) => {
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
 
     if (text && index < 5) {
-      inputs.current[index + 1].focus();
+      inputs.current[index + 1]?.focus();
     }
   };
-  const handleBackspace = (text, index) => {
+
+  const handleBackspace = (text: string, index: number) => {
     if (!text && index > 0) {
-      inputs.current[index - 1].focus();
+      inputs.current[index - 1]?.focus();
     }
 
     const newOtp = [...otp];
@@ -83,77 +62,28 @@ const OtpScreen = () => {
     setOtp(newOtp);
   };
 
-  console.log('OTP', otp);
-  const handleResendOtp = async () => {
-    setOtp(['', '', '', '', '', '']);
-
-    try {
-      const response = await axios.post(`${BASE_URL}/resendOtp`, {
-        email: email,
-      });
-
-      console.log('response', response.data);
-    } catch (error) {
-      console.log('Error resending the otp', error);
-    }
-  };
-
   return (
-    <SafeAreaView
-      style={{
-        paddingTop: Platform.OS === 'android' ? 35 : 0,
-        flex: 1,
-        backgroundColor: 'white',
-        alignItems: 'center',
-      }}
-    >
-      <View
-        style={{
-          height: 60,
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginTop: 50,
-        }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: '500' }}>
-          Verification code
-        </Text>
-        <Text style={{ fontSize: 14, color: 'gray', marginTop: 5 }}>
-          Enter the 6 digit code sent to your email
+    <SafeAreaView style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>Verification Code</Text>
+        <Text style={styles.subtitle}>
+          Enter the 6-digit code to continue (test mode)
         </Text>
       </View>
 
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          width: '80%',
-          marginTop: 30,
-        }}
-      >
+      <View style={styles.otpContainer}>
         {otp.map((value, index) => (
           <TextInput
             key={index}
-            style={{
-              width: 45,
-              height: 45,
-              borderWidth: 1,
-              borderColor: '#ccc',
-              borderRadius: 8,
-              textAlign: 'center',
-              fontSize: 18,
-              color: '#333',
-            }}
-            ref={el => {
-              inputs.current[index] = el;
-            }}
+            ref={el => (inputs.current[index] = el)}
+            style={styles.otpInput}
             keyboardType="number-pad"
             maxLength={1}
             value={value}
             onChangeText={text => handleChange(text, index)}
             onKeyPress={({ nativeEvent }) => {
               if (nativeEvent.key === 'Backspace') {
-                handleBackspace(index);
+                handleBackspace('', index);
               }
             }}
             autoFocus={index === 0}
@@ -161,16 +91,58 @@ const OtpScreen = () => {
         ))}
       </View>
 
-      <View style={{ marginTop: 30 }} />
+      <View style={{ marginTop: 30 }}>
+        <Button title="Continue (Manual Test)" onPress={handleConfirmSignUp} />
+      </View>
 
-      <Button
-        title="Resend Code"
-        onPress={() => setOtp(['', '', '', '', '', ''])}
-      />
+      <View style={{ marginTop: 15 }}>
+        <Button
+          title="Reset Fields"
+          onPress={() => setOtp(['', '', '', '', '', ''])}
+        />
+      </View>
     </SafeAreaView>
   );
 };
 
 export default OtpScreen;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: Platform.OS === 'android' ? 35 : 0,
+    flex: 1,
+    backgroundColor: 'white',
+    alignItems: 'center',
+  },
+  headerContainer: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'gray',
+    marginTop: 5,
+  },
+  otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '80%',
+    marginTop: 30,
+  },
+  otpInput: {
+    width: 45,
+    height: 45,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    textAlign: 'center',
+    fontSize: 18,
+    color: '#333',
+  },
+});
