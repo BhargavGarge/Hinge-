@@ -7,9 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import React from 'react';
-
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useState } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -20,38 +21,105 @@ import { BASE_URL } from '../url/url';
 
 type RootStackParamList = {
   Password: undefined;
-  Otp: undefined;
+  Otp: { email: string }; // ✅ FIX: Add email parameter type
 };
+
 const PasswordScreen = () => {
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false); // ✅ ADD: Loading state
   const route = useRoute();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList, 'Password'>>();
-  const email = route?.params?.email;
+  const email = (route.params as { email?: string })?.email; // ✅ FIX: Proper type casting
+
+  console.log('🔍 Password Screen - Email:', email);
   const handleSendOtp = async () => {
     if (!email) {
+      Alert.alert('Error', 'Email not found.');
+      return;
+    }
+
+    if (!password || password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters.');
       return;
     }
 
     try {
-      const response = await axios.post(`${BASE_URL}/sendOtp`, {
-        email,
-        password,
+      setLoading(true);
+      console.log('🚀 Sending OTP request to:', `${BASE_URL}/sendOtp`);
+      console.log('📧 Email:', email);
+      console.log('🔑 Password length:', password.length);
+
+      const response = await axios.post(
+        `${BASE_URL}/sendOtp`,
+        {
+          email: email.trim().toLowerCase(),
+          password,
+        },
+        {
+          timeout: 15000, // 15 second timeout
+        },
+      );
+
+      console.log('✅ OTP Sent Successfully:', response.data);
+
+      // Navigate only after successful API call
+      navigation.navigate('Otp', { email: email.trim().toLowerCase() });
+    } catch (error: any) {
+      console.error('❌ OTP Error Details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        baseUrl: BASE_URL,
       });
-      console.log(response.data.message);
-      navigation.navigate('Otp', { email });
-    } catch (error) {
-      console.log('Error sending the OTP', error);
+
+      let errorMessage = 'Failed to send OTP';
+
+      // Network errors
+      if (
+        error.code === 'NETWORK_ERROR' ||
+        error.message.includes('Network Error')
+      ) {
+        errorMessage = `Cannot connect to server.\n\nCurrent BASE_URL: ${BASE_URL}\n\nPlease check:\n• Server is running on port 9000\n• Correct BASE_URL for your environment\n• Computer and phone on same network`;
+      }
+      // Timeout errors
+      else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timeout. Server might be down or slow.';
+      }
+      // Server errors
+      else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      // Other errors
+      else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert('OTP Failed', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
   const handleNext = () => {
+    if (!password.trim()) {
+      Alert.alert('Error', 'Please enter a password.');
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters.');
+      return;
+    }
+
+    // Save progress if needed
     if (password.trim() !== '') {
       saveRegistrationProgress('Password', { password });
     }
-    navigation.navigate('Otp', { email });
 
+    // ✅ Call API directly
     handleSendOtp();
   };
+
   return (
     <SafeAreaView
       style={{
@@ -92,7 +160,7 @@ const PasswordScreen = () => {
             fontSize: 22,
           }}
         >
-          Choose Password?
+          Choose Password
         </Text>
 
         <TextInput
@@ -115,19 +183,33 @@ const PasswordScreen = () => {
         />
 
         <Text style={{ color: 'gray', marginTop: 7, fontSize: 15 }}>
-          Note: You details will be safe with us
+          Note: Your details will be safe with us
+        </Text>
+
+        <Text style={{ color: 'gray', marginTop: 5, fontSize: 12 }}>
+          Password must be at least 8 characters with uppercase, lowercase,
+          number, and special character
         </Text>
 
         <TouchableOpacity
           onPress={handleNext}
           activeOpacity={0.8}
-          style={{ marginTop: 30, marginLeft: 'auto' }}
+          disabled={loading}
+          style={{
+            marginTop: 30,
+            marginLeft: 'auto',
+            opacity: loading ? 0.5 : 1,
+          }}
         >
-          <Ionicons
-            name="chevron-forward-circle-outline"
-            size={45}
-            color="#581845"
-          />
+          {loading ? (
+            <ActivityIndicator size="small" color="#581845" />
+          ) : (
+            <Ionicons
+              name="chevron-forward-circle-outline"
+              size={45}
+              color="#581845"
+            />
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -105,6 +105,7 @@ const LocationScreen = () => {
         <View
           style={{
             flex: 1,
+            marginBottom: 60,
             justifyContent: 'flex-end',
             alignItems: 'flex-end',
           }}
