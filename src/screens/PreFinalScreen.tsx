@@ -7,228 +7,375 @@ import {
   Pressable,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react';
 import LottieView from 'lottie-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import LinearGradient from 'react-native-linear-gradient';
+import Svg, {
+  Path,
+  Circle,
+  Defs,
+  RadialGradient,
+  Stop,
+} from 'react-native-svg';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AuthContext } from '../../AuthContext';
+import { BASE_URL } from '../url/url';
+import { getRegistrationProgress } from '../utils/registrationUtlis';
 
 type RootStackParamList = {
   BasicInfo: undefined;
   Home: undefined;
 };
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+const ModernIllustration = ({ animatedValue }) => (
+  <Animated.View
+    style={[styles.illustrationContainer, { opacity: animatedValue }]}
+  >
+    <Svg width={width * 0.85} height={280} viewBox="0 0 320 280">
+      <Defs>
+        <RadialGradient id="glow1" cx="50%" cy="50%">
+          <Stop offset="0%" stopColor="#af4c9d" stopOpacity="0.3" />
+          <Stop offset="100%" stopColor="#af4c9d" stopOpacity="0" />
+        </RadialGradient>
+        <RadialGradient id="glow2" cx="50%" cy="50%">
+          <Stop offset="0%" stopColor="#d6a5d3" stopOpacity="0.4" />
+          <Stop offset="100%" stopColor="#d6a5d3" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+
+      {/* Glowing orbs */}
+      <Circle cx="80" cy="70" r="60" fill="url(#glow1)" />
+      <Circle cx="240" cy="120" r="80" fill="url(#glow2)" />
+
+      {/* Abstract shapes representing connection */}
+      <Path
+        d="M60 140 Q160 80 260 140"
+        stroke="#af4c9d"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <Circle cx="60" cy="140" r="12" fill="#af4c9d" />
+      <Circle cx="160" cy="95" r="8" fill="#d6a5d3" />
+      <Circle cx="260" cy="140" r="12" fill="#af4c9d" />
+
+      {/* Floating hearts/connections */}
+      <Path
+        d="M100 200 L105 195 L110 200 L105 210 Z"
+        fill="#e4c8e6"
+        opacity="0.6"
+      />
+      <Path
+        d="M220 180 L225 175 L230 180 L225 190 Z"
+        fill="#d6a5d3"
+        opacity="0.7"
+      />
+      <Path
+        d="M150 230 L155 225 L160 230 L155 240 Z"
+        fill="#af4c9d"
+        opacity="0.5"
+      />
+
+      {/* Sparkles */}
+      <Path
+        d="M40 60 L42 65 L47 67 L42 69 L40 74 L38 69 L33 67 L38 65 Z"
+        fill="#af4c9d"
+        opacity="0.8"
+      />
+      <Path
+        d="M280 90 L282 95 L287 97 L282 99 L280 104 L278 99 L273 97 L278 95 Z"
+        fill="#d6a5d3"
+        opacity="0.7"
+      />
+      <Path
+        d="M160 40 L162 45 L167 47 L162 49 L160 54 L158 49 L153 47 L158 45 Z"
+        fill="#e4c8e6"
+        opacity="0.6"
+      />
+    </Svg>
+  </Animated.View>
+);
 
 const PreFinalScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [userData, setUserData] = useState<any>(null);
+  const { token, setToken } = useContext(AuthContext);
+  const [loading, setLoading] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const slideUpAnim = useRef(new Animated.Value(60)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const illustrationAnim = useRef(new Animated.Value(0)).current;
   const buttonAnim = useRef(new Animated.Value(0)).current;
-  const badgesAnim = useRef(new Animated.Value(0)).current;
-  const confettiScale = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.sequence([
+    getAllUserData();
+  }, []);
+
+  const getAllUserData = async () => {
+    try {
+      const screens = [
+        'Name',
+        'Email',
+        'Password',
+        'Birth',
+        'Location',
+        'Gender',
+        'Type',
+        'Dating',
+        'LookingFor',
+        'Hometown',
+        'Workplace',
+        'JobTitle',
+        'Photos',
+        'Prompts',
+      ];
+
+      let userData = {};
+      for (const screenName of screens) {
+        const screenData = await getRegistrationProgress(screenName);
+        if (screenData) {
+          userData = { ...userData, ...screenData };
+        }
+      }
+
+      setUserData(userData);
+      startAnimations();
+    } catch (error) {
+      console.log('Error', error);
+    }
+  };
+
+  const startAnimations = () => {
+    Animated.stagger(150, [
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.spring(confettiScale, {
-          toValue: 1,
-          tension: 8,
-          friction: 4,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 700,
+          duration: 800,
           useNativeDriver: true,
         }),
         Animated.spring(scaleAnim, {
           toValue: 1,
-          tension: 15,
-          friction: 6,
+          tension: 20,
+          friction: 7,
           useNativeDriver: true,
         }),
       ]),
+      Animated.timing(illustrationAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
       Animated.parallel([
-        Animated.timing(badgesAnim, {
-          toValue: 1,
-          duration: 600,
+        Animated.timing(slideUpAnim, {
+          toValue: 0,
+          duration: 700,
           useNativeDriver: true,
         }),
         Animated.timing(buttonAnim, {
           toValue: 1,
-          duration: 700,
+          duration: 800,
           useNativeDriver: true,
         }),
       ]),
     ]).start();
-  }, []);
+  };
+
+  const clearAllScreenData = async () => {
+    try {
+      const screens = [
+        'Name',
+        'Email',
+        'Password',
+        'Birth',
+        'Location',
+        'Gender',
+        'Type',
+        'Dating',
+        'LookingFor',
+        'Hometown',
+        'Workplace',
+        'JobTitle',
+        'Photos',
+        'Prompts',
+      ];
+
+      for (const screenName of screens) {
+        const key = `registration_progress_${screenName}`;
+        await AsyncStorage.removeItem(key);
+      }
+    } catch (error) {
+      console.log('Error clearing data:', error);
+    }
+  };
+
+  const registerUser = async () => {
+    if (!userData) return;
+
+    try {
+      setLoading(true);
+      const response = await axios.post(`${BASE_URL}/register`, userData);
+
+      if (response.data.token) {
+        const token = response.data.token;
+        await AsyncStorage.setItem('token', token);
+        setToken(token);
+        setRegistrationComplete(true);
+        await clearAllScreenData();
+
+        setTimeout(() => {
+          navigation.navigate('Home');
+        }, 1500);
+      }
+    } catch (error) {
+      console.log('Registration error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartConnecting = () => {
+    if (registrationComplete) {
+      navigation.navigate('Home');
+    } else {
+      registerUser();
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.mainWrapper}>
-        {/* Decorative Background Elements */}
-        <View style={styles.backgroundCircle1} />
-        <View style={styles.backgroundCircle2} />
-        <View style={styles.backgroundCircle3} />
+      <LinearGradient
+        colors={['#ffffff', '#FFF9FA', '#fef5fd']}
+        style={styles.gradient}
+      >
+        {/* Confetti */}
+        {registrationComplete && (
+          <Animated.View
+            style={[styles.confettiContainer, { opacity: fadeAnim }]}
+          >
+            <LottieView
+              style={styles.confetti}
+              source={require('../../assets/confetti.json')}
+              autoPlay
+              loop={false}
+              speed={1}
+            />
+          </Animated.View>
+        )}
 
-        {/* Confetti Animation */}
-        <Animated.View
-          style={[
-            styles.confettiContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: confettiScale }],
-            },
-          ]}
-        >
-          <LottieView
-            style={styles.confetti}
-            source={require('../../assets/confetti.json')} // Use a celebration/confetti animation
-            autoPlay
-            loop={false}
-            speed={1}
-          />
-        </Animated.View>
+        <View style={styles.content}>
+          {/* Header */}
+          <Animated.View
+            style={[
+              styles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.iconWrapper}>
+              {loading ? (
+                <ActivityIndicator size="large" color="#af4c9d" />
+              ) : registrationComplete ? (
+                <Text style={styles.icon}>✓</Text>
+              ) : (
+                <Text style={styles.icon}>✨</Text>
+              )}
+            </View>
 
-        {/* Header Section */}
-        <Animated.View
-          style={[
-            styles.headerContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <View style={styles.checkmarkContainer}>
-            <Animated.View
-              style={[
-                styles.checkmarkCircle,
-                {
-                  transform: [{ scale: scaleAnim }],
-                },
+            <Text style={styles.title}>
+              {registrationComplete ? "You're all set!" : 'Almost there!'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {registrationComplete
+                ? 'Your journey begins now'
+                : 'One step away from something special'}
+            </Text>
+          </Animated.View>
+
+          {/* Illustration */}
+          <ModernIllustration animatedValue={illustrationAnim} />
+
+          {/* Description */}
+          <Animated.View
+            style={[
+              styles.descriptionContainer,
+              {
+                opacity: buttonAnim,
+                transform: [{ translateY: slideUpAnim }],
+              },
+            ]}
+          >
+            <Text style={styles.description}>
+              {registrationComplete
+                ? 'Ready to meet amazing people who share your interests'
+                : 'Complete your profile and start making meaningful connections'}
+            </Text>
+          </Animated.View>
+
+          {/* CTA Buttons */}
+          <Animated.View
+            style={[
+              styles.buttonContainer,
+              {
+                opacity: buttonAnim,
+                transform: [{ translateY: slideUpAnim }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={handleStartConnecting}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.buttonPressed,
+                loading && styles.buttonDisabled,
               ]}
+              disabled={loading}
             >
-              <Text style={styles.checkmark}>✓</Text>
-            </Animated.View>
-          </View>
+              <LinearGradient
+                colors={['#af4c9d', '#9d3a8d']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {registrationComplete
+                      ? 'Start Connecting'
+                      : 'Complete Registration'}
+                  </Text>
+                )}
+              </LinearGradient>
+            </Pressable>
 
-          <Text style={styles.mainTitle}>You're all set!</Text>
-          <Text style={styles.subtitle}>
-            Your profile is ready to make great first impressions
-          </Text>
-        </Animated.View>
-
-        {/* Feature Badges */}
-        <Animated.View
-          style={[
-            styles.badgesContainer,
-            {
-              opacity: badgesAnim,
-              transform: [
-                {
-                  translateY: badgesAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.badge}>
-            <View style={styles.badgeIcon}>
-              <Text style={styles.badgeEmoji}>📸</Text>
-            </View>
-            <View style={styles.badgeContent}>
-              <Text style={styles.badgeTitle}>Photos Added</Text>
-              <Text style={styles.badgeSubtext}>Looking great!</Text>
-            </View>
-          </View>
-
-          <View style={styles.badge}>
-            <View style={styles.badgeIcon}>
-              <Text style={styles.badgeEmoji}>✏️</Text>
-            </View>
-            <View style={styles.badgeContent}>
-              <Text style={styles.badgeTitle}>Prompts Complete</Text>
-              <Text style={styles.badgeSubtext}>Show who you are</Text>
-            </View>
-          </View>
-
-          <View style={styles.badge}>
-            <View style={styles.badgeIcon}>
-              <Text style={styles.badgeEmoji}>💫</Text>
-            </View>
-            <View style={styles.badgeContent}>
-              <Text style={styles.badgeTitle}>Profile Ready</Text>
-              <Text style={styles.badgeSubtext}>Time to connect</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Success Animation */}
-        <Animated.View
-          style={[
-            styles.animationContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        ></Animated.View>
-
-        {/* CTA Section */}
-        <Animated.View
-          style={[
-            styles.ctaContainer,
-            {
-              opacity: buttonAnim,
-              transform: [
-                {
-                  translateY: buttonAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Pressable
-            onPress={() => navigation.navigate('Home')}
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <View style={styles.buttonContent}>
-              <Text style={styles.buttonText}>Start Connecting</Text>
-            </View>
-          </Pressable>
-
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.secondaryButtonText}>Review Profile</Text>
-          </Pressable>
-        </Animated.View>
-      </View>
+            {!registrationComplete && (
+              <Pressable
+                onPress={() => navigation.goBack()}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && styles.buttonPressed,
+                  loading && styles.buttonDisabled,
+                ]}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryButtonText}>Review Profile</Text>
+              </Pressable>
+            )}
+          </Animated.View>
+        </View>
+      </LinearGradient>
     </SafeAreaView>
   );
 };
@@ -238,256 +385,131 @@ export default PreFinalScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 35 : 0,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
   },
-  mainWrapper: {
+  gradient: {
     flex: 1,
-    backgroundColor: '#FFF9FA',
-  },
-  backgroundCircle1: {
-    position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: '#E8F5E9',
-    opacity: 0.4,
-    top: -100,
-    right: -100,
-  },
-  backgroundCircle2: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: '#e4c8e6',
-    opacity: 0.3,
-    bottom: 120,
-    left: -70,
-  },
-  backgroundCircle3: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#d6a5d3',
-    opacity: 0.25,
-    top: '40%',
-    right: -50,
+    paddingTop: Platform.OS === 'android' ? 35 : 0,
   },
   confettiContainer: {
-    position: 'absolute',
-    width: width,
-    height: height,
-    top: 0,
-    left: 0,
-    zIndex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
     pointerEvents: 'none',
   },
   confetti: {
     width: '100%',
     height: '100%',
   },
-  headerContainer: {
-    marginTop: 10,
-    marginHorizontal: 30,
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+  },
+  header: {
     alignItems: 'center',
-    zIndex: 10,
+    marginBottom: 20,
   },
-  checkmarkContainer: {
-    marginBottom: 24,
-  },
-  checkmarkCircle: {
+  iconWrapper: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#af4c9d',
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#7d2e6c',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
+    marginBottom: 24,
+    shadowColor: '#af4c9d',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
     shadowRadius: 20,
-    elevation: 12,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: '#fef5fd',
   },
-  checkmark: {
-    fontSize: 42,
-    color: '#FFFFFF',
-    fontWeight: '800',
+  icon: {
+    fontSize: 40,
+    color: '#af4c9d',
   },
-  mainTitle: {
-    fontSize: 36,
+  title: {
+    fontSize: 32,
     fontWeight: '800',
-    fontFamily: Platform.OS === 'ios' ? 'GeezaPro-Bold' : 'sans-serif-medium',
-    color: '#1A1A1A',
-    lineHeight: 44,
-    letterSpacing: -0.5,
+    color: '#1a1a1a',
     textAlign: 'center',
+    letterSpacing: -0.5,
+    marginBottom: 12,
   },
   subtitle: {
-    fontSize: 17,
-    fontWeight: '500',
-    color: '#666',
-    marginTop: 12,
-    lineHeight: 24,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  badgesContainer: {
-    marginTop: 40,
-    paddingHorizontal: 30,
-    gap: 16,
-    zIndex: 5,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#4CAF50',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#E8F5E9',
-  },
-  badgeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#E8F5E9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  badgeEmoji: {
-    fontSize: 22,
-  },
-  badgeContent: {
-    flex: 1,
-  },
-  badgeTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    marginBottom: 2,
-  },
-  badgeSubtext: {
-    fontSize: 14,
     fontWeight: '500',
     color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 20,
   },
-  animationContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  illustrationContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
-    zIndex: 5,
+    marginVertical: 20,
   },
-  animationWrapper: {
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 100,
-    shadowColor: '#4CAF50',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 30,
-    elevation: 12,
-    borderWidth: 3,
-    borderColor: '#E8F5E9',
+  descriptionContainer: {
+    paddingHorizontal: 12,
+    marginBottom: 1,
+    position: 'relative',
+    bottom: 60,
   },
-  animationInnerGlow: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: '#F1F8F4',
-    opacity: 0.6,
+  description: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  lottie: {
-    height: 180,
-    width: 180,
-    zIndex: 2,
+  buttonContainer: {
+    marginBottom: '40%',
+    position: 'relative',
+    bottom: 50,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 30,
+    gap: 12,
   },
-  ctaContainer: {
-    paddingHorizontal: 30,
-    paddingBottom: Platform.OS === 'ios' ? 45 : 35,
-    zIndex: 10,
-    marginBottom: 50,
-  },
-  button: {
-    borderRadius: 30,
+  primaryButton: {
+    borderRadius: 28,
     overflow: 'hidden',
-    backgroundColor: '#4CAF50',
-    shadowColor: '#2E7D32',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowColor: '#af4c9d',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  buttonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.97 }],
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
+  gradientButton: {
+    paddingVertical: 18,
     paddingHorizontal: 32,
-    backgroundColor: '#af4ca5',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginRight: 12,
-  },
-  arrowContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonArrow: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
   secondaryButton: {
-    marginTop: 16,
     paddingVertical: 16,
-    borderRadius: 30,
+    paddingHorizontal: 32,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: '#af4caf',
+    borderColor: '#af4c9d',
     backgroundColor: 'transparent',
+    alignItems: 'center',
   },
   secondaryButtonText: {
-    textAlign: 'center',
-    color: '#af4cac',
+    color: '#af4c9d',
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  buttonPressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });
