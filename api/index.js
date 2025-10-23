@@ -383,6 +383,137 @@ app.post('/register', async (req, res) => {
     });
   }
 });
+app.get('/matches', async (req, res) => {
+  const { userId } = req.query;
+
+  // console.log('user', userId);
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ message: 'UserId is required' });
+    }
+
+    const userParams = {
+      TableName: 'usercollection',
+      Key: { userId },
+    };
+
+    const userResult = await dynamoDbClient.send(new GetCommand(userParams));
+
+    if (!userResult.Item) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = {
+      userId: userResult.Item.userId,
+      gender: userResult.Item.gender,
+      datingPreferences:
+        userResult.Item.datingPreferences?.map(pref => pref) || [],
+      matches: userResult.Item.matches?.map(match => match) || [],
+      likedProfiles:
+        userResult?.Item.likedProfiles?.map(lp => lp.likedUserId) || [],
+    };
+
+    const genderFilter = user?.datingPreferences?.map(g => ({ S: g }));
+    const excludeIds = [
+      ...user.matches,
+      ...user.likedProfiles,
+      user.userId,
+    ].map(id => ({ S: id }));
+
+    const scanParams = {
+      TableName: 'usercollection',
+      FilterExpression:
+        'userId <> :currentUserId AND (contains(:genderPref,gender)) AND NOT contains(:excludedIds,userId)',
+      ExpressionAttributeValues: {
+        ':currentUserId': { S: user.userId },
+        ':genderPref': {
+          L: genderFilter.length > 0 ? genderFilter : [{ S: 'None' }],
+        },
+        ':excludedIds': { L: excludeIds },
+      },
+    };
+
+    const scanResult = await dynamoDbClient.send(new ScanCommand(scanParams));
+
+    const matches = scanResult.Items.map(item => ({
+      userId: item?.userId.S,
+      email: item?.email.S,
+      firstName: item?.firstName.S,
+      gender: item?.gender.S,
+      location: item?.location.S,
+      lookingFor: item?.lookingFor.S,
+      dateOfBirth: item.dateOfBirth.S,
+      hometown: item.hometown.S,
+      type: item.type.S,
+      jobTitle: item.jobTitle.S,
+      workPlace: item.workPlace.S,
+      imageUrls: item.imageUrls?.L.map(url => url.S) || [],
+      prompts:
+        item?.prompts.L.map(prompt => ({
+          question: prompt.M.question.S,
+          answer: prompt.M.answer.S,
+        })) || [],
+    }));
+
+    res.status(200).json({ matches });
+  } catch (error) {
+    console.log('Error fetching matches', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+app.get('/user-info', async (req, res) => {
+  const { userId } = req.query;
+
+  console.log('User ID', userId);
+
+  if (!userId) {
+    return res.status(400).json({ message: 'User id is required' });
+  }
+
+  try {
+    const params = {
+      TableName: 'usercollection',
+      Key: { userId },
+    };
+    const command = new GetCommand(params);
+    const result = await dynamoDbClient.send(command);
+
+    if (!result.Item) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('res', result);
+
+    res.status(200).json({ user: result.Item });
+  } catch (error) {
+    console.log('Error fetching user details', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(404).json({ message: 'Token is required' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  console.log('recieived token', token);
+
+  const secretKey =
+    '582e6b12ec6da3125121e9be07d00f63495ace020ec9079c30abeebd329986c5c35548b068ddb4b187391a5490c880137c1528c76ce2feacc5ad781a742e2de0'; // Use a better key management
+
+  jwt.verify(token, secretKey, (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+
+    req.user = user;
+    next();
+  });
+};
 
 const server = http.createServer(app);
 
