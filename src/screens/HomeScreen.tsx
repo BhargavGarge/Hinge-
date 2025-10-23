@@ -453,6 +453,90 @@ export default function HomeScreen() {
             </View>
           </ScrollView>
         </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="bag-outline" size={20} color="black" />
+          <Text>{currentProfile?.jobTitle}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="locate-outline" size={20} color="black" />
+          <Text>{currentProfile?.workPlace}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="book-outline" size={20} color="black" />
+          <Text>Hindu</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="home-outline" size={20} color="black" />
+          <Text>{currentProfile?.location}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="search-outline" size={20} color="black" />
+          <Text>{currentProfile?.lookingFor}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 15,
+            borderBottomColor: '#E0E0E0',
+            paddingBottom: 10,
+            borderBottomWidth: 0.8,
+          }}
+        >
+          <Ionicons name="heart-outline" size={20} color="black" />
+          <Text>Monogamy</Text>
+        </View>
       </View>
     </ScrollView>
   );
