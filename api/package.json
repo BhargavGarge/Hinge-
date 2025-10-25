@@ -13,7 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.908.0",
     "@aws-sdk/client-dynamodb": "^3.908.0",
-    "@aws-sdk/lib-dynamodb": "^3.908.0",
+    "@aws-sdk/lib-dynamodb": "^3.916.0",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
