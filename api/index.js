@@ -400,11 +400,17 @@ app.post('/create-test-females', async (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrls: [
           'https://images.unsplash.com/photo-1494790108755-2616b612b786?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         ],
         prompts: [
           {
             question: "I'm looking for",
             answer: 'Someone who makes me laugh',
+          },
+          {
+            question: 'My simple pleasure',
+            answer: 'Morning coffee with a good book',
           },
         ],
         password:
@@ -431,11 +437,17 @@ app.post('/create-test-females', async (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrls: [
           'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         ],
         prompts: [
           {
             question: 'A random fact I love is',
             answer: 'Dolphins have names for each other',
+          },
+          {
+            question: "I'm weirdly attracted to",
+            answer: 'People who remember small details',
           },
         ],
         password:
@@ -462,11 +474,17 @@ app.post('/create-test-females', async (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrls: [
           'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1494790108755-2616b612b786?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         ],
         prompts: [
           {
             question: 'My greatest strength',
             answer: 'Always seeing the positive side',
+          },
+          {
+            question: 'Together we could',
+            answer: 'Explore hidden cafes in the city',
           },
         ],
         password:
@@ -493,11 +511,18 @@ app.post('/create-test-females', async (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrls: [
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         ],
         prompts: [
           {
             question: 'Together, we could',
             answer: 'Travel the world and try new foods',
+          },
+          {
+            question: 'My simple pleasure',
+            answer: 'Sunday morning hikes',
           },
         ],
         password:
@@ -524,11 +549,55 @@ app.post('/create-test-females', async (req, res) => {
         createdAt: new Date().toISOString(),
         imageUrls: [
           'https://images.unsplash.com/photo-1517841905240-472988babdf9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1494790108755-2616b612b786?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
         ],
         prompts: [
           {
             question: "I'm weirdly attracted to",
             answer: 'People who can cook amazing pasta',
+          },
+          {
+            question: 'A random fact I love is',
+            answer: 'Octopuses have three hearts',
+          },
+        ],
+        password:
+          '$2b$10$3oF73GRXAvuwzzVcXfZKt.ggm39CpSdVSEJpTB9vj.rEl91VDMGTu',
+        blockedUsers: [],
+        likedProfiles: [],
+        matches: [],
+        receivedLikes: [],
+      },
+      {
+        userId: 'female-user-6',
+        firstName: 'Charlotte',
+        gender: 'Women',
+        email: 'charlotte.miller@test.com',
+        datingPreferences: ['Men'],
+        location: 'Schmalkalden',
+        lookingFor: 'Relationship',
+        jobTitle: 'Architect',
+        hometown: 'Stuttgart',
+        dateOfBirth: '12/11/1997',
+        type: 'Straight',
+        likes: 9,
+        roses: 3,
+        createdAt: new Date().toISOString(),
+        imageUrls: [
+          'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+          'https://images.unsplash.com/photo-1494790108755-2616b612b786?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80',
+        ],
+        prompts: [
+          {
+            question: "I'm looking for",
+            answer: 'Someone to build dreams with',
+          },
+          {
+            question: 'My greatest strength',
+            answer: 'Turning ideas into reality',
           },
         ],
         password:
@@ -546,20 +615,25 @@ app.post('/create-test-females', async (req, res) => {
         Item: user,
       };
       await docClient.send(new PutCommand(params));
-      console.log(`✅ Created: ${user.firstName}`);
+      console.log(
+        `✅ Created: ${user.firstName} with ${user.imageUrls.length} photos`,
+      );
     }
 
     res.status(200).json({
       success: true,
-      message: `${femaleUsers.length} female users created successfully`,
-      users: femaleUsers.map(u => u.firstName),
+      message: `${femaleUsers.length} female users created successfully with multiple photos each`,
+      users: femaleUsers.map(u => ({
+        name: u.firstName,
+        photos: u.imageUrls.length,
+        prompts: u.prompts.length,
+      })),
     });
   } catch (error) {
     console.log('Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
-// Authentication middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
@@ -579,6 +653,129 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+app.post('/like-profile', authenticateToken, async (req, res) => {
+  const { userId, likedUserId, image, comment = null, type, prompt } = req.body;
+
+  if (req.user.userId !== userId) {
+    return res.status(403).json({ message: 'unauthorized action' });
+  }
+  if (!userId || !likedUserId) {
+    return res.status(404).json({ message: 'Missing required parametered' });
+  }
+
+  try {
+    const userParams = {
+      TableName: 'users',
+      Key: { userId },
+    };
+
+    const userData = await dynamoDbClient.send(new GetCommand(userParams));
+
+    if (!userData.Item) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = userData.Item;
+    const likesRemaining = user.likes;
+    console.log('likes remaining', likesRemaining);
+    const likesLastUpdated = new Date(user?.likesLastUpdated?.S || '0');
+    console.log('Likes last updated', likesLastUpdated);
+    const now = new Date();
+    const maxLikes = 2;
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    const timeSinceLastUpdate = now - likesLastUpdated;
+
+    if (timeSinceLastUpdate >= oneDay) {
+      const resetParams = {
+        TableName: 'users',
+        Key: { userId },
+        UpdateExpression: 'SET likes = :maxLikes, likesLastUpdated = :now',
+        ExpressionAttributeValues: {
+          ':maxLikes': { N: maxLikes.toString() },
+          ':now': { S: now.toISOString() },
+        },
+      };
+      await dynamoDbClient.send(new UpdateCommand(resetParams));
+
+      user.likes = { N: maxLikes.toString() };
+    } else if (likesRemaining <= 0) {
+      return res.status(403).json({
+        message:
+          'Daily like limit reached, please subscribe or try again tomorrow',
+      });
+    }
+
+    const newLikes = likesRemaining - 1;
+
+    const decrementLikesParams = {
+      TableName: 'users',
+      Key: { userId },
+      UpdateExpression: 'SET likes = :newLikes',
+      ExpressionAttributeValues: {
+        ':newLikes': newLikes,
+      },
+    };
+
+    await dynamoDbClient.send(new UpdateCommand(decrementLikesParams));
+
+    let newLike = { userId, type };
+
+    if (type == 'image') {
+      if (!image) {
+        return res.status(404).json({ message: 'Image url is required' });
+      }
+      newLike.image = image;
+    } else if (type == 'prompt') {
+      if (!prompt || !prompt.question || !prompt.answer) {
+        return res.status(400).json({ message: 'Prompts are required' });
+      }
+      newLike.prompt = prompt;
+    }
+
+    if (comment) {
+      newLike.comment = comment;
+    }
+
+    //step 1
+    const updatedReceivedLikesParams = {
+      TableName: 'users',
+      Key: { userId: likedUserId },
+      UpdateExpression:
+        'SET receivedLikes = list_append(if_not_exists(receivedLikes, :empty_list), :newLike)',
+      ExpressionAttributeValues: {
+        ':newLike': [newLike],
+        ':empty_list': [],
+      },
+      ReturnValues: 'UPDATED_NEW',
+    };
+
+    await dynamoDbClient.send(new UpdateCommand(updatedReceivedLikesParams));
+
+    //step 2
+
+    const updatedLikedParams = {
+      TableName: 'users',
+      Key: { userId },
+      UpdateExpression:
+        'SET likedProfiles = list_append(if_not_exists(likedProfiles, :empty_list), :likedUserId)',
+      ExpressionAttributeValues: {
+        ':likedUserId': [{ likedUserId }],
+        ':empty_list': [],
+      },
+      ReturnValues: 'UPDATED_NEW',
+    };
+
+    await dynamoDbClient.send(new UpdateCommand(updatedLikedParams));
+
+    res.status(200).json({ message: 'Profile Likes succesfully!' });
+  } catch (error) {
+    console.log('Error liking', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+// Authentication middleware
 
 const server = http.createServer(app);
 
