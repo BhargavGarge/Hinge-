@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Entypo from 'react-native-vector-icons/Entypo';
 import { AuthContext } from '../../AuthContext';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -52,7 +53,7 @@ const { width: screenWidth } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProps>();
-  const { userId, setUserId, token, setToken, userInfo, setUserInfo } =
+  const { userId, setUserId, token, setToken, userInfo, setUserInfo, logout } =
     useContext(AuthContext);
   const [users, setUsers] = useState<User[]>([]);
   const [currentProfile, setCurrentProfile] = useState<User | null>(null);
@@ -61,6 +62,7 @@ export default function HomeScreen() {
   const [profileVisible, setProfileVisible] = useState(true);
   const [dislikedProfiles, setDislikedProfiles] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const animationValue = new Animated.Value(0);
   const scale = useState(new Animated.Value(1))[0];
@@ -134,6 +136,43 @@ export default function HomeScreen() {
     }
   };
 
+  const handleDislike = () => {
+    if (currentProfile) {
+      setDislikedProfiles([...dislikedProfiles, currentProfile.userId]);
+      handleNextProfile();
+    }
+  };
+
+  const handleNextProfile = () => {
+    if (currentIndex < users.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+      setCurrentProfile(users[currentIndex + 1]);
+    } else {
+      // No more profiles
+      setCurrentProfile(null);
+    }
+  };
+
+  const handleLike = async () => {
+    if (!currentProfile) return;
+
+    try {
+      // Send like to the server
+      const response = await axios.post(`${BASE_URL}/send-like`, {
+        userId: userId,
+        likedUserId: currentProfile.userId,
+        type: 'profile',
+      });
+
+      if (response.data.success) {
+        console.log(`You liked ${currentProfile.firstName}`);
+        handleNextProfile();
+      }
+    } catch (error) {
+      console.log('Error sending like:', error);
+    }
+  };
+
   // Safe text rendering helper function
   const renderText = (content: any, style: any = {}) => {
     return (
@@ -158,276 +197,469 @@ export default function HomeScreen() {
         <Text style={[styles.title, styles.defaultText]}>
           No profiles available
         </Text>
+        <Pressable onPress={fetchMatches} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Refresh</Text>
+        </Pressable>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.scrollViewContent}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Filter Options */}
-      <View style={styles.filterContainer}>
-        <Pressable style={styles.filterIcon}>
-          <Ionicons name="sparkles-sharp" size={22} color="black" />
-        </Pressable>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScrollContent}
-        >
-          <Pressable
-            onPress={() => setOption('Age')}
-            style={[
-              styles.filterButton,
-              option === 'Age' && styles.activeFilterButton,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Age' && styles.activeFilterText,
-              ]}
-            >
-              Age
-            </Text>
+    <>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        {/* Filter Options */}
+        <View style={styles.filterContainer}>
+          <Pressable onPress={logout} style={styles.filterIcon}>
+            <Ionicons name="sparkles-sharp" size={22} color="black" />
           </Pressable>
 
-          <Pressable
-            style={[
-              styles.filterButton,
-              option === 'Height' && styles.activeFilterButton,
-            ]}
-            onPress={() => setOption('Height')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Height' && styles.activeFilterText,
-              ]}
-            >
-              Height
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.filterButton,
-              option === 'Dating Intention' && styles.activeFilterButton,
-            ]}
-            onPress={() => setOption('Dating Intention')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Dating Intention' && styles.activeFilterText,
-              ]}
-            >
-              Dating Intention
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.filterButton,
-              option === 'Nearby' && styles.activeFilterButton,
-            ]}
-            onPress={() => setOption('Nearby')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Nearby' && styles.activeFilterText,
-              ]}
-            >
-              Nearby
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.filterButton,
-              option === 'Interests' && styles.activeFilterButton,
-            ]}
-            onPress={() => setOption('Interests')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Interests' && styles.activeFilterText,
-              ]}
-            >
-              Interests
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.filterButton,
-              option === 'Verified' && styles.activeFilterButton,
-            ]}
-            onPress={() => setOption('Verified')}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                option === 'Verified' && styles.activeFilterText,
-              ]}
-            >
-              Verified
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-
-      {/* Profile Section */}
-      <View style={styles.profileContainer}>
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.nameContainer}>
-            {renderText(currentProfile?.firstName, styles.profileName)}
-            <View style={styles.newBadge}>
-              <Text style={styles.newBadgeText}>new here</Text>
-            </View>
-          </View>
-          <View>
-            <Ionicons name="ellipsis-horizontal" size={22} color="black" />
-          </View>
-        </View>
-
-        {/* Profile Image */}
-        <View style={styles.imageContainer}>
-          {currentProfile?.imageUrls && currentProfile.imageUrls.length > 0 ? (
-            <View>
-              <Image
-                style={styles.profileImage}
-                source={{ uri: currentProfile.imageUrls[0] }}
-              />
-              <Pressable
-                onPress={() =>
-                  navigation.navigate('SendLike', {
-                    type: 'image',
-                    image: currentProfile.imageUrls[0],
-                    name: currentProfile.firstName,
-                    userId: userId,
-                    likedUserId: currentProfile.userId,
-                  })
-                }
-                style={styles.likeButton}
-              >
-                <Image
-                  style={styles.likeIcon}
-                  source={{
-                    uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
-                  }}
-                />
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.noImageContainer}>
-              <Text style={styles.defaultText}>No image available</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Prompts Section */}
-      <View style={styles.promptsContainer}>
-        {currentProfile?.prompts?.slice(0, 1).map((prompt, index) => (
-          <View key={index} style={styles.promptCard}>
-            <View style={styles.promptContent}>
-              {renderText(prompt?.question, styles.promptQuestion)}
-              {renderText(prompt?.answer, styles.promptAnswer)}
-            </View>
-
-            <Pressable
-              onPress={() =>
-                navigation.navigate('SendLike', {
-                  type: 'prompt',
-                  name: currentProfile?.firstName,
-                  userId: userId,
-                  likedUserId: currentProfile?.userId,
-                  prompt: {
-                    question: prompt?.question,
-                    answer: prompt?.answer,
-                  },
-                })
-              }
-              style={styles.promptLikeButton}
-            >
-              <Image
-                style={styles.likeIcon}
-                source={{
-                  uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
-                }}
-              />
-            </Pressable>
-          </View>
-        ))}
-      </View>
-
-      {/* Details Section */}
-      <View style={styles.detailsContainer}>
-        <View style={styles.detailsSection}>
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={true}
-            contentContainerStyle={styles.detailsScrollContent}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollContent}
           >
-            <View style={styles.detailItem}>
-              {renderText(currentProfile?.dateOfBirth, styles.detailText)}
-            </View>
-            <View style={styles.detailItem}>
-              {renderText(currentProfile?.gender, styles.detailText)}
-            </View>
-            <View style={styles.detailItem}>
-              {renderText(currentProfile?.type, styles.detailText)}
-            </View>
-            <View style={styles.detailItem}>
-              {renderText(currentProfile?.hometown, styles.detailText)}
-            </View>
-            <View style={styles.detailItem}>
-              {renderText(currentProfile?.jobTitle, styles.detailText)}
-            </View>
-            <View style={styles.detailItem}>
-              {renderText('5\'7"', styles.detailText)}
-            </View>
+            <Pressable
+              onPress={() => setOption('Age')}
+              style={[
+                styles.filterButton,
+                option === 'Age' && styles.activeFilterButton,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Age' && styles.activeFilterText,
+                ]}
+              >
+                Age
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterButton,
+                option === 'Height' && styles.activeFilterButton,
+              ]}
+              onPress={() => setOption('Height')}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Height' && styles.activeFilterText,
+                ]}
+              >
+                Height
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterButton,
+                option === 'Dating Intention' && styles.activeFilterButton,
+              ]}
+              onPress={() => setOption('Dating Intention')}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Dating Intention' && styles.activeFilterText,
+                ]}
+              >
+                Dating Intention
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterButton,
+                option === 'Nearby' && styles.activeFilterButton,
+              ]}
+              onPress={() => setOption('Nearby')}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Nearby' && styles.activeFilterText,
+                ]}
+              >
+                Nearby
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterButton,
+                option === 'Interests' && styles.activeFilterButton,
+              ]}
+              onPress={() => setOption('Interests')}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Interests' && styles.activeFilterText,
+                ]}
+              >
+                Interests
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.filterButton,
+                option === 'Verified' && styles.activeFilterButton,
+              ]}
+              onPress={() => setOption('Verified')}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  option === 'Verified' && styles.activeFilterText,
+                ]}
+              >
+                Verified
+              </Text>
+            </Pressable>
           </ScrollView>
         </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="bag-outline" size={20} color="black" />
-          {renderText(currentProfile?.jobTitle)}
-        </View>
+        {profileVisible && (
+          <View style={styles.profileContainer}>
+            {/* Profile Header */}
+            <View style={styles.profileHeader}>
+              <View style={styles.nameContainer}>
+                {renderText(currentProfile?.firstName, styles.profileName)}
+                <View style={styles.newBadge}>
+                  <Text style={styles.newBadgeText}>new here</Text>
+                </View>
+              </View>
+              <View>
+                <Entypo name="dots-three-horizontal" size={22} color="black" />
+              </View>
+            </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="locate-outline" size={20} color="black" />
-          {renderText(currentProfile?.workPlace)}
-        </View>
+            {/* Main Profile Image */}
+            <View style={styles.imageContainer}>
+              {currentProfile?.imageUrls &&
+              currentProfile.imageUrls.length > 0 ? (
+                <View>
+                  <Image
+                    style={styles.profileImage}
+                    source={{ uri: currentProfile.imageUrls[0] }}
+                  />
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'image',
+                        image: currentProfile.imageUrls[0],
+                        name: currentProfile.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile.userId,
+                      })
+                    }
+                    style={styles.likeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.noImageContainer}>
+                  <Text style={styles.defaultText}>No image available</Text>
+                </View>
+              )}
+            </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="book-outline" size={20} color="black" />
-          <Text style={styles.defaultText}>Hindu</Text>
-        </View>
+            {/* First Prompt */}
+            <View style={styles.promptsContainer}>
+              {currentProfile?.prompts?.slice(0, 1).map((prompt, index) => (
+                <View key={index} style={styles.promptCard}>
+                  <View style={styles.promptContent}>
+                    {renderText(prompt?.question, styles.promptQuestion)}
+                    {renderText(prompt?.answer, styles.promptAnswer)}
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'prompt',
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                        prompt: {
+                          question: prompt?.question,
+                          answer: prompt?.answer,
+                        },
+                      })
+                    }
+                    style={styles.promptLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="home-outline" size={20} color="black" />
-          {renderText(currentProfile?.location)}
-        </View>
+            {/* Details Section with Horizontal Scroll */}
+            <View style={styles.detailsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={true}
+                contentContainerStyle={styles.detailsScrollContent}
+              >
+                <View style={styles.detailItem}>
+                  {renderText(currentProfile?.dateOfBirth, styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText(currentProfile?.gender, styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText(currentProfile?.type, styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText(currentProfile?.hometown, styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText(currentProfile?.jobTitle, styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText('5\'7"', styles.detailText)}
+                </View>
+                <View style={styles.detailItem}>
+                  {renderText('Straight', styles.detailText)}
+                </View>
+              </ScrollView>
+            </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="search-outline" size={20} color="black" />
-          {renderText(currentProfile?.lookingFor)}
-        </View>
+            <View style={styles.detailRow}>
+              <Ionicons name="bag-outline" size={20} color="black" />
+              {renderText(currentProfile?.jobTitle)}
+            </View>
 
-        <View style={styles.detailRow}>
-          <Ionicons name="heart-outline" size={20} color="black" />
-          <Text style={styles.defaultText}>Monogamy</Text>
-        </View>
-      </View>
-    </ScrollView>
+            <View style={styles.detailRow}>
+              <Ionicons name="locate-outline" size={20} color="black" />
+              {renderText(currentProfile?.workPlace)}
+            </View>
+
+            <View style={styles.detailRow}>
+              <Ionicons name="book-outline" size={20} color="black" />
+              <Text style={styles.defaultText}>Hindu</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Ionicons name="home-outline" size={20} color="black" />
+              {renderText(currentProfile?.location)}
+            </View>
+
+            <View style={styles.detailRow}>
+              <Ionicons name="search-outline" size={20} color="black" />
+              {renderText(currentProfile?.lookingFor)}
+            </View>
+
+            <View style={styles.detailRow}>
+              <Ionicons name="heart-outline" size={20} color="black" />
+              <Text style={styles.defaultText}>Monogamy</Text>
+            </View>
+
+            {/* Additional Photos (2nd and 3rd) */}
+            <View>
+              {currentProfile?.imageUrls?.slice(1, 3).map((item, index) => (
+                <View style={styles.additionalPhotoItem} key={index}>
+                  <Image
+                    style={styles.additionalPhoto}
+                    source={{ uri: item }}
+                  />
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'image',
+                        image: item,
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                      })
+                    }
+                    style={styles.additionalPhotoLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
+            {/* Second Prompt */}
+            <View style={styles.promptsContainer}>
+              {currentProfile?.prompts?.slice(1, 2).map((prompt, index) => (
+                <View key={index} style={styles.promptCard}>
+                  <View style={styles.promptContent}>
+                    {renderText(prompt?.question, styles.promptQuestion)}
+                    {renderText(prompt?.answer, styles.promptAnswer)}
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'prompt',
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                        prompt: {
+                          question: prompt?.question,
+                          answer: prompt?.answer,
+                        },
+                      })
+                    }
+                    style={styles.promptLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
+            {/* Additional Photos (4th) */}
+            <View>
+              {currentProfile?.imageUrls?.slice(3, 4).map((item, index) => (
+                <View key={index} style={styles.additionalPhotoItem}>
+                  <Image
+                    style={styles.additionalPhoto}
+                    source={{ uri: item }}
+                  />
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'image',
+                        image: item,
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                      })
+                    }
+                    style={styles.additionalPhotoLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
+            {/* Third Prompt */}
+            <View style={styles.promptsContainer}>
+              {currentProfile?.prompts?.slice(2, 3).map((prompt, index) => (
+                <View key={index} style={styles.promptCard}>
+                  <View style={styles.promptContent}>
+                    {renderText(prompt?.question, styles.promptQuestion)}
+                    {renderText(prompt?.answer, styles.promptAnswer)}
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'prompt',
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                        prompt: {
+                          question: prompt?.question,
+                          answer: prompt?.answer,
+                        },
+                      })
+                    }
+                    style={styles.promptLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+
+            {/* Additional Photos (5th, 6th, 7th) */}
+            <View>
+              {currentProfile?.imageUrls?.slice(4, 7).map((item, index) => (
+                <View key={index} style={styles.additionalPhotoItem}>
+                  <Image
+                    style={styles.additionalPhoto}
+                    source={{ uri: item }}
+                  />
+                  <Pressable
+                    onPress={() =>
+                      navigation.navigate('SendLike', {
+                        type: 'image',
+                        image: item,
+                        name: currentProfile?.firstName,
+                        userId: userId,
+                        likedUserId: currentProfile?.userId,
+                      })
+                    }
+                    style={styles.additionalPhotoLikeButton}
+                  >
+                    <Image
+                      style={styles.likeIcon}
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/128/2724/2724657.png',
+                      }}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {isAnimating && (
+          <Animated.View
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              transform: [{ scale }],
+            }}
+          >
+            <Image
+              style={{ width: 70, height: 60 }}
+              source={{
+                uri: 'https://cdn-icons-png.flaticon.com/128/17876/17876989.png',
+              }}
+            />
+          </Animated.View>
+        )}
+      </ScrollView>
+
+      {/* Dislike Button */}
+      <Pressable onPress={handleDislike} style={styles.dislikeButton}>
+        <Image
+          style={styles.dislikeIcon}
+          source={{
+            uri: 'https://cdn-icons-png.flaticon.com/128/17876/17876989.png',
+          }}
+        />
+      </Pressable>
+    </>
   );
 }
 
@@ -452,11 +684,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'white',
+    padding: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
     color: 'black',
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
   filterContainer: {
     padding: 10,
@@ -565,9 +809,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  additionalPhotoItem: {
+    marginVertical: 10,
+  },
+  additionalPhoto: {
+    width: '100%',
+    height: 410,
+    resizeMode: 'cover',
+    borderRadius: 10,
+  },
+  additionalPhotoLikeButton: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'white',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   promptsContainer: {
     marginVertical: 15,
-    marginHorizontal: 12,
   },
   promptCard: {
     backgroundColor: 'white',
@@ -607,16 +870,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     padding: 10,
     borderRadius: 8,
-    marginHorizontal: 12,
-    marginBottom: 20,
-  },
-  detailsSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 0.8,
-    borderBlockColor: '#E0E0E0',
-    paddingBottom: 10,
-    minHeight: 40,
+    marginBottom: 15,
   },
   detailsScrollContent: {
     flexDirection: 'row',
@@ -624,7 +878,7 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   detailItem: {
-    marginRight: 20,
+    marginRight: 15,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: '#f5f5f5',
@@ -645,5 +899,26 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
     paddingBottom: 10,
     borderBottomWidth: 0.8,
+  },
+  dislikeButton: {
+    position: 'absolute',
+    bottom: 15,
+    left: 12,
+    backgroundColor: 'white',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  dislikeIcon: {
+    width: 30,
+    height: 30,
+    resizeMode: 'contain',
   },
 });
