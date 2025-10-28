@@ -146,11 +146,11 @@ const StackNavigator = () => {
   const AuthStack = () => {
     return (
       <Stack.Navigator>
-        {/* <Stack.Screen
+        <Stack.Screen
           name="Login"
           component={LoginScreen}
           options={{ headerShown: false }}
-        /> */}
+        />
         <Stack.Screen
           name="Basic"
           component={BasicInfo}
