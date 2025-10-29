@@ -115,12 +115,24 @@ const SendLikeScreen: React.FC = () => {
         },
       });
 
-      console.log('response', response);
       if (response.status === 200) {
-        navigation.goBack();
+        // Run the animation
+        Animated.timing(animationValue, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }).start(() => {
+          animationValue.setValue(0);
+          setIsAnimating(false);
+          setProfileVisible(true);
+          navigation.goBack(); // ✅ Now navigate AFTER animation completes
+        });
       }
     } catch (error) {
       console.log('Error', error);
+      setIsAnimating(false);
+      setProfileVisible(true);
     }
   };
 
