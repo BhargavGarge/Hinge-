@@ -1,36 +1,36 @@
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import {
-  StyleSheet,
-  Text,
   View,
-  SafeAreaView,
-  Image,
-  KeyboardAvoidingView,
+  Text,
   TextInput,
-  Pressable,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Animated,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import React, { useState, useContext, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import LottieView from 'lottie-react-native';
 import axios from 'axios';
-import { BASE_URL } from '../url/url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from '../../AuthContext';
+import Video from 'react-native-video';
+import { BASE_URL } from '../url/url';
 
 const { height } = Dimensions.get('window');
+// change this to your backend
 
 const LoginScreen = () => {
   const [option, setOption] = useState('Sign In');
-  const navigation = useNavigation();
-  const [word, setWord] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation();
   const { token, setToken } = useContext(AuthContext);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
@@ -49,380 +49,204 @@ const LoginScreen = () => {
     ]).start();
   }, []);
 
-  const createAccount = () => {
-    setOption('Create account');
-    navigation.navigate('Basic');
-  };
-
   const handleLogin = async () => {
-    setOption('Sign In');
-
-    if (!word || !password) {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
       return;
     }
 
-    console.log('Hi');
+    setLoading(true);
+    try {
+      const user = { email, password };
+      const response = await axios.post(`${BASE_URL}/login`, user);
 
-    const user = {
-      email: word,
-      password: password,
-    };
+      const { token, IdToken, AccessToken } = response.data;
 
-    const response = await axios.post(`${BASE_URL}/login`, user);
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('idToken', IdToken);
+      await AsyncStorage.setItem('accessToken', AccessToken);
 
-    const { token, IdToken, AccessToken } = response.data;
+      setToken(token);
+      navigation.navigate('Home');
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Login failed. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    console.log('token', token);
-
-    await AsyncStorage.setItem('token', token);
-    setToken(token);
-    await AsyncStorage.setItem('idToken', IdToken);
-    await AsyncStorage.setItem('accessToken', AccessToken);
+  const goToCreateAccount = () => {
+    setOption('Create account');
+    navigation.navigate('Basic'); // your registration screen
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      {/* Video Background */}
+      <Video
+        source={require('../../assets/video.mp4')}
+        style={styles.videoBackground}
+        resizeMode="cover"
+        repeat
+        muted
+        rate={0.8}
+      />
+
+      {/* Overlay */}
+      <View style={styles.overlay} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        {/* Header Section */}
-        <View style={styles.header}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Animated.View
             style={[
-              styles.logoContainer,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              },
+              styles.content,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
             ]}
           >
-            <View style={styles.logoCircle}>
-              <Image
-                style={styles.logo}
-                source={{
-                  uri: 'https://cdn-icons-png.flaticon.com/128/4207/4207268.png',
-                }}
-              />
+            <View style={styles.header}>
+              <Text style={styles.logo}>Spark</Text>
+              <Text style={styles.tagline}>{option}</Text>
             </View>
-            <Text style={styles.appName}>Hinge</Text>
-            <Text style={styles.tagline}>Designed to be deleted</Text>
-          </Animated.View>
-        </View>
 
-        {/* Content Section */}
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          {option === 'Sign In' ? (
             <View style={styles.formContainer}>
-              {/* Email Input */}
               <View style={styles.inputWrapper}>
-                <Text style={styles.inputLabel}>Email</Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    emailFocused && styles.inputContainerFocused,
-                  ]}
-                >
-                  <TextInput
-                    value={word}
-                    onChangeText={text => setWord(text)}
-                    placeholder="Enter your email"
-                    placeholderTextColor="#999"
-                    style={styles.input}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                  />
-                </View>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
               </View>
 
-              {/* Password Input */}
               <View style={styles.inputWrapper}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <View
-                  style={[
-                    styles.inputContainer,
-                    passwordFocused && styles.inputContainerFocused,
-                  ]}
-                >
-                  <TextInput
-                    secureTextEntry={true}
-                    value={password}
-                    onChangeText={text => setPassword(text)}
-                    placeholder="Enter your password"
-                    placeholderTextColor="#999"
-                    style={styles.input}
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                  />
-                </View>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
               </View>
 
-              {/* Options Row */}
-              <View style={styles.optionsRow}>
-                <Text style={styles.optionText}>Keep me logged in</Text>
-                <Pressable>
-                  <Text style={styles.forgotPassword}>Forgot Password?</Text>
-                </Pressable>
+              <TouchableOpacity
+                style={[
+                  styles.authButton,
+                  loading && styles.authButtonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.authButtonText}>Sign In</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.toggleContainer}>
+                <Text style={styles.toggleText}>Don't have an account?</Text>
+                <TouchableOpacity onPress={goToCreateAccount}>
+                  <Text style={styles.toggleButton}>Sign Up</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          ) : (
-            <View style={styles.animationContainer}>
-              <LottieView
-                source={require('../assets/login.json')}
-                style={styles.lottie}
-                autoPlay
-                loop={true}
-                speed={0.7}
-              />
-              <Text style={styles.createAccountText}>
-                Join thousands finding meaningful connections
-              </Text>
-            </View>
-          )}
 
-          {/* Buttons */}
-          <View style={styles.buttonContainer}>
-            <Pressable
-              onPress={handleLogin}
-              style={[
-                styles.button,
-                styles.primaryButton,
-                option !== 'Sign In' && styles.buttonOutline,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.buttonText,
-                  option !== 'Sign In' && styles.buttonTextOutline,
-                ]}
-              >
-                Sign In
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={createAccount}
-              style={[
-                styles.button,
-                styles.secondaryButton,
-                option === 'Create account' && styles.primaryButton,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.buttonText,
-                  styles.buttonTextSecondary,
-                  option === 'Create account' && styles.buttonTextPrimary,
-                ]}
-              >
-                Create Account
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              By continuing, you agree to our{' '}
-              <Text style={styles.footerLink}>Terms</Text> and{' '}
-              <Text style={styles.footerLink}>Privacy Policy</Text>
+            <Text style={styles.terms}>
+              By continuing, you agree to our Terms of Service and Privacy
+              Policy
             </Text>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-export default LoginScreen;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
+  container: { flex: 1, backgroundColor: '#000' },
+  videoBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
   },
-  keyboardView: {
-    flex: 1,
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(88,24,69,0.7)',
   },
-  header: {
-    paddingTop: 40,
-    paddingBottom: 30,
+  keyboardView: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: 40 },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  header: { alignItems: 'center', marginBottom: 50 },
+  logo: { fontSize: 56, fontWeight: '700', color: '#fff', marginBottom: 8 },
+  tagline: { fontSize: 18, color: 'rgba(255,255,255,0.9)', fontWeight: '400' },
+  formContainer: { width: '100%' },
+  inputWrapper: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#fff', marginBottom: 8 },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  authButton: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
+    marginTop: 12,
   },
-  logoContainer: {
-    alignItems: 'center',
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF',
+  authButtonDisabled: { opacity: 0.7 },
+  authButtonText: { color: '#581845', fontSize: 18, fontWeight: '700' },
+  toggleContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#581845',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    marginTop: 24,
   },
-  logo: {
-    width: 50,
-    height: 50,
-    resizeMode: 'contain',
-  },
-  appName: {
-    fontSize: 36,
+  toggleText: { color: 'rgba(255,255,255,0.8)', fontSize: 15 },
+  toggleButton: {
+    color: '#fff',
+    fontSize: 15,
     fontWeight: '700',
-    color: '#581845',
-    marginTop: 16,
-    letterSpacing: 0.5,
-  },
-  tagline: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
-    fontWeight: '400',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
-  },
-  formContainer: {
-    marginTop: 20,
-  },
-  inputWrapper: {
-    marginBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    textDecorationLine: 'underline',
     marginLeft: 4,
   },
-  inputContainer: {
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#E8E8E8',
-    paddingHorizontal: 20,
-    height: 56,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  inputContainerFocused: {
-    borderColor: '#581845',
-    shadowColor: '#581845',
-    shadowOpacity: 0.15,
-  },
-  input: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '400',
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  optionText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  forgotPassword: {
-    fontSize: 14,
-    color: '#581845',
-    fontWeight: '600',
-  },
-  animationContainer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  lottie: {
-    height: 200,
-    width: 300,
-  },
-  createAccountText: {
-    fontSize: 16,
-    color: '#666',
+  terms: {
     textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 40,
-    lineHeight: 24,
-  },
-  buttonContainer: {
-    marginTop: 32,
-    gap: 16,
-  },
-  button: {
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  primaryButton: {
-    backgroundColor: '#581845',
-  },
-  secondaryButton: {
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#E8E8E8',
-  },
-  buttonOutline: {
-    backgroundColor: '#FFF',
-    borderWidth: 2,
-    borderColor: '#E8E8E8',
-    shadowOpacity: 0.05,
-  },
-  buttonText: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  buttonTextPrimary: {
-    color: '#FFF',
-  },
-  buttonTextSecondary: {
-    color: '#581845',
-  },
-  buttonTextOutline: {
-    color: '#581845',
-  },
-  footer: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  footerText: {
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
+    marginTop: 40,
     lineHeight: 18,
-  },
-  footerLink: {
-    color: '#581845',
-    fontWeight: '600',
+    paddingHorizontal: 20,
   },
 });
+
+export default LoginScreen;

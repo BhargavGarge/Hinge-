@@ -11,13 +11,15 @@ import {
   SignUpCommand,
   ConfirmSignUpCommand,
   ResendConfirmationCodeCommand,
+  InitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, QueryCommand } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   ScanCommand,
   PutCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 
 configDotenv();
@@ -308,8 +310,10 @@ app.get('/matches', async (req, res) => {
     // Apply gender preference filter
     let filteredMatches = potentialMatches;
     if (user.datingPreferences && user.datingPreferences.length > 0) {
-      filteredMatches = potentialMatches.filter(item =>
-        user.datingPreferences.includes(item.gender),
+      filteredMatches = potentialMatches.filter(
+        item =>
+          user.datingPreferences.includes(item.gender) &&
+          item.datingPreferences?.includes(user.gender),
       );
     }
 
@@ -346,40 +350,7 @@ app.get('/matches', async (req, res) => {
 });
 
 // User info endpoint
-app.get('/user-info', async (req, res) => {
-  const { userId } = req.query;
 
-  console.log('Fetching user info for:', userId);
-
-  if (!userId) {
-    return res.status(400).json({ message: 'User id is required' });
-  }
-
-  try {
-    const params = {
-      TableName: 'usercollection',
-      Key: { userId: userId },
-    };
-
-    const result = await docClient.send(new GetCommand(params));
-
-    if (!result.Item) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    res.status(200).json({
-      success: true,
-      user: result.Item,
-    });
-  } catch (error) {
-    console.log('Error fetching user details', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
-  }
-});
 app.post('/create-test-females', async (req, res) => {
   try {
     const femaleUsers = [
@@ -634,6 +605,40 @@ app.post('/create-test-females', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+app.get('/user-info', async (req, res) => {
+  const { userId } = req.query;
+
+  console.log('Fetching user info for:', userId);
+
+  if (!userId) {
+    return res.status(400).json({ message: 'User id is required' });
+  }
+
+  try {
+    const params = {
+      TableName: 'usercollection',
+      Key: { userId: userId },
+    };
+
+    const result = await docClient.send(new GetCommand(params));
+
+    if (!result.Item) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: result.Item,
+    });
+  } catch (error) {
+    console.log('Error fetching user details', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+});
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
 
@@ -658,48 +663,48 @@ app.post('/like-profile', authenticateToken, async (req, res) => {
   const { userId, likedUserId, image, comment = null, type, prompt } = req.body;
 
   if (req.user.userId !== userId) {
-    return res.status(403).json({ message: 'unauthorized action' });
+    return res.status(403).json({ message: 'Unauthorized action' });
   }
+
   if (!userId || !likedUserId) {
-    return res.status(404).json({ message: 'Missing required parametered' });
+    return res.status(400).json({ message: 'Missing required parameters' });
   }
 
   try {
-    const userParams = {
-      TableName: 'users',
-      Key: { userId },
-    };
-
-    const userData = await dynamoDbClient.send(new GetCommand(userParams));
+    // Fetch current user
+    const userData = await dynamoDbClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId },
+      }),
+    );
 
     if (!userData.Item) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const user = userData.Item;
-    const likesRemaining = user.likes;
-    console.log('likes remaining', likesRemaining);
-    const likesLastUpdated = new Date(user?.likesLastUpdated?.S || '0');
-    console.log('Likes last updated', likesLastUpdated);
+    const likesRemaining = user.likes ?? 0;
+    const likesLastUpdated = new Date(user.likesLastUpdated || 0);
     const now = new Date();
     const maxLikes = 2;
     const oneDay = 24 * 60 * 60 * 1000;
 
-    const timeSinceLastUpdate = now - likesLastUpdated;
+    // Reset likes if 24h have passed
+    if (now - likesLastUpdated >= oneDay) {
+      await dynamoDbClient.send(
+        new UpdateCommand({
+          TableName: 'usercollection',
+          Key: { userId },
+          UpdateExpression: 'SET likes = :maxLikes, likesLastUpdated = :now',
+          ExpressionAttributeValues: {
+            ':maxLikes': maxLikes,
+            ':now': now.toISOString(),
+          },
+        }),
+      );
 
-    if (timeSinceLastUpdate >= oneDay) {
-      const resetParams = {
-        TableName: 'users',
-        Key: { userId },
-        UpdateExpression: 'SET likes = :maxLikes, likesLastUpdated = :now',
-        ExpressionAttributeValues: {
-          ':maxLikes': { N: maxLikes.toString() },
-          ':now': { S: now.toISOString() },
-        },
-      };
-      await dynamoDbClient.send(new UpdateCommand(resetParams));
-
-      user.likes = { N: maxLikes.toString() };
+      user.likes = maxLikes;
     } else if (likesRemaining <= 0) {
       return res.status(403).json({
         message:
@@ -707,125 +712,120 @@ app.post('/like-profile', authenticateToken, async (req, res) => {
       });
     }
 
-    const newLikes = likesRemaining - 1;
+    // Decrement like count
+    const newLikes = user.likes - 1;
+    await dynamoDbClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId },
+        UpdateExpression: 'SET likes = :newLikes',
+        ExpressionAttributeValues: {
+          ':newLikes': newLikes,
+        },
+      }),
+    );
 
-    const decrementLikesParams = {
-      TableName: 'users',
-      Key: { userId },
-      UpdateExpression: 'SET likes = :newLikes',
-      ExpressionAttributeValues: {
-        ':newLikes': newLikes,
-      },
-    };
-
-    await dynamoDbClient.send(new UpdateCommand(decrementLikesParams));
-
-    let newLike = { userId, type };
-
-    if (type == 'image') {
-      if (!image) {
-        return res.status(404).json({ message: 'Image url is required' });
-      }
+    // Build new like object
+    const newLike = { userId, type };
+    if (type === 'image') {
+      if (!image)
+        return res.status(400).json({ message: 'Image URL is required' });
       newLike.image = image;
-    } else if (type == 'prompt') {
+    } else if (type === 'prompt') {
       if (!prompt || !prompt.question || !prompt.answer) {
-        return res.status(400).json({ message: 'Prompts are required' });
+        return res.status(400).json({ message: 'Prompt data is required' });
       }
       newLike.prompt = prompt;
     }
+    if (comment) newLike.comment = comment;
 
-    if (comment) {
-      newLike.comment = comment;
-    }
+    // 1️⃣ Update liked user's receivedLikes
+    await dynamoDbClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId: likedUserId },
+        UpdateExpression:
+          'SET receivedLikes = list_append(if_not_exists(receivedLikes, :empty_list), :newLike)',
+        ExpressionAttributeValues: {
+          ':newLike': [newLike],
+          ':empty_list': [],
+        },
+      }),
+    );
 
-    //step 1
-    const updatedReceivedLikesParams = {
-      TableName: 'users',
-      Key: { userId: likedUserId },
-      UpdateExpression:
-        'SET receivedLikes = list_append(if_not_exists(receivedLikes, :empty_list), :newLike)',
-      ExpressionAttributeValues: {
-        ':newLike': [newLike],
-        ':empty_list': [],
-      },
-      ReturnValues: 'UPDATED_NEW',
-    };
+    // 2️⃣ Update current user's likedProfiles
+    await dynamoDbClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId },
+        UpdateExpression:
+          'SET likedProfiles = list_append(if_not_exists(likedProfiles, :empty_list), :likedUserId)',
+        ExpressionAttributeValues: {
+          ':likedUserId': [likedUserId],
+          ':empty_list': [],
+        },
+      }),
+    );
 
-    await dynamoDbClient.send(new UpdateCommand(updatedReceivedLikesParams));
-
-    //step 2
-
-    const updatedLikedParams = {
-      TableName: 'users',
-      Key: { userId },
-      UpdateExpression:
-        'SET likedProfiles = list_append(if_not_exists(likedProfiles, :empty_list), :likedUserId)',
-      ExpressionAttributeValues: {
-        ':likedUserId': [{ likedUserId }],
-        ':empty_list': [],
-      },
-      ReturnValues: 'UPDATED_NEW',
-    };
-
-    await dynamoDbClient.send(new UpdateCommand(updatedLikedParams));
-
-    res.status(200).json({ message: 'Profile Likes succesfully!' });
+    return res.status(200).json({ message: 'Profile liked successfully!' });
   } catch (error) {
-    console.log('Error liking', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error liking profile:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+// --------------------------- RECEIVED LIKES --------------------------- //
 app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
   const { userId } = req.params;
 
-  console.log('User', userId);
-
   try {
-    const params = {
-      TableName: 'users',
-      Key: { userId: userId },
-      ProjectionExpression: 'receivedLikes',
-    };
-
-    const data = await dynamoDbClient.send(new GetCommand(params));
-    console.log('User', data);
+    const data = await dynamoDbClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId },
+        ProjectionExpression: 'receivedLikes',
+      }),
+    );
 
     if (!data.Item) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const receivedLikes = data?.Item?.receivedLikes || [];
+    const receivedLikes = data.Item.receivedLikes || [];
 
+    // Enrich likes with sender user info
     const enrichedLikes = await Promise.all(
       receivedLikes.map(async like => {
-        const userParams = {
-          TableName: 'users',
-          Key: { userId: like.userId },
-          ProjectionExpression: 'userId, firstName, imageUrls, prompts',
-        };
+        const userData = await dynamoDbClient.send(
+          new GetCommand({
+            TableName: 'usercollection',
+            Key: { userId: like.userId },
+            ProjectionExpression: 'userId, firstName, imageUrls, prompts',
+          }),
+        );
 
-        const userData = await dynamoDbClient.send(new GetCommand(userParams));
-        console.log('User data', userData);
-
-        const user = userData?.Item
+        const liker = userData.Item
           ? {
               userId: userData.Item.userId,
               firstName: userData.Item.firstName,
               imageUrls: userData.Item.imageUrls || null,
-              prompts: userData.Item.prompts,
+              prompts: userData.Item.prompts || null,
             }
-          : { userId: like.userId, firstName: null, imageUrl: null };
+          : {
+              userId: like.userId,
+              firstName: null,
+              imageUrls: null,
+              prompts: null,
+            };
 
-        return { ...like, userId: user };
+        return { ...like, user: liker };
       }),
     );
 
-    console.log('Encriches', enrichedLikes);
-
-    res.status(200).json({ receivedLikes: enrichedLikes });
+    return res.status(200).json({ receivedLikes: enrichedLikes });
   } catch (error) {
-    console.log('Error getting the likes');
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error getting received likes:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 });
 
@@ -837,7 +837,7 @@ app.post('/login', async (req, res) => {
 
   const authParams = {
     AuthFlow: 'USER_PASSWORD_AUTH',
-    ClientId: '',
+    ClientId: '6b711i0jdq8o77ptl6a39ejee4',
     AuthParameters: {
       USERNAME: email,
       PASSWORD: password,
@@ -852,7 +852,7 @@ app.post('/login', async (req, res) => {
       authResult.AuthenticationResult;
 
     const userParams = {
-      TableName: 'users',
+      TableName: 'usercollection',
       IndexName: 'email-index',
       KeyConditionExpression: 'email = :emailValue',
       ExpressionAttributeValues: {
