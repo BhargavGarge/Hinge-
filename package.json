@@ -13,6 +13,7 @@
     "@aws-sdk/client-cognito-identity-provider": "^3.913.0",
     "@aws-sdk/client-dynamodb": "^3.913.0",
     "@aws-sdk/lib-dynamodb": "^3.913.0",
+    "@aws-sdk/util-dynamodb": "^3.623.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-vector-icons/evil-icons": "^12.3.0",
     "@react-native-vector-icons/fontawesome": "^12.3.0",
