@@ -21,6 +21,7 @@ import {
   PutCommand,
   UpdateCommand,
   QueryCommand,
+  BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
@@ -615,6 +616,148 @@ app.post('/login', async (req, res) => {
     return res
       .status(500)
       .json({ message: 'Internal server error', details: error.message });
+  }
+});
+
+async function getIndexToRemove(selectedUserId, currentUserId) {
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: 'usercollection',
+      Key: { userId: selectedUserId },
+      ProjectionExpression: 'likedProfiles',
+    }),
+  );
+
+  const likedProfiles = result?.Item?.likedProfiles || [];
+  return likedProfiles?.findIndex(
+    profile => profile.likedUserId == currentUserId,
+  );
+}
+///create-match endpoint
+app.post('/create-match', authenticateToken, async (req, res) => {
+  try {
+    console.log('Hey');
+    const { currentUserId, selectedUserId } = req.body;
+
+    console.log('current', currentUserId);
+    console.log('selected', selectedUserId);
+
+    const userResponse = await docClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId: currentUserId },
+      }),
+    );
+
+    const receivedLikes = userResponse?.Item?.receivedLikes || [];
+
+    const indexToRemove = receivedLikes.findIndex(
+      like => like.userId == selectedUserId,
+    );
+
+    if (indexToRemove == -1) {
+      return res
+        .status(400)
+        .json({ message: 'Selected User not found in receivedLikes' });
+    }
+
+    const index = await getIndexToRemove(selectedUserId, currentUserId);
+
+    if (index == -1) {
+      return res
+        .status(400)
+        .json({ message: 'Current user not in likedProfiles' });
+    }
+
+    await docClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId: selectedUserId },
+        UpdateExpression: `
+        SET #matches = list_append(if_not_exists(#matches, :emptyList), :currentUser)
+        REMOVE #likedProfiles[${index}]
+      `,
+        ExpressionAttributeNames: {
+          '#matches': 'matches',
+          '#likedProfiles': 'likedProfiles',
+        },
+        ExpressionAttributeValues: {
+          ':currentUser': [currentUserId],
+          ':emptyList': [],
+        },
+      }),
+    );
+
+    await docClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId: currentUserId },
+        UpdateExpression:
+          'SET #matches = list_append(if_not_exists(#matches, :emptyList), :selectedUser)',
+        ExpressionAttributeNames: {
+          '#matches': 'matches',
+        },
+        ExpressionAttributeValues: {
+          ':selectedUser': [selectedUserId],
+          ':emptyList': [],
+        },
+      }),
+    );
+
+    await docClient.send(
+      new UpdateCommand({
+        TableName: 'usercollection',
+        Key: { userId: currentUserId },
+        UpdateExpression: `REMOVE #receivedLikes[${indexToRemove}]`,
+        ExpressionAttributeNames: {
+          '#receivedLikes': 'receivedLikes',
+        },
+      }),
+    );
+
+    res.status(200).json({ message: 'Match created successfully!' });
+  } catch (error) {
+    console.log('Error creating a match', error);
+  }
+});
+
+//get-matches
+app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const userResult = await docClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId },
+        ProjectionExpression: 'matches',
+      }),
+    );
+
+    const matches = userResult?.Item?.matches || [];
+
+    if (!matches.length) {
+      return res.status(200).json({ matches: [] });
+    }
+
+    const batchGetParams = {
+      RequestItems: {
+        users: {
+          Keys: matches.map(matchId => ({ userId: matchId })),
+          ProjectionExpression: 'userId, firstName, imageUrls, prompts',
+        },
+      },
+    };
+
+    const matchResult = await docClient.send(
+      new BatchGetCommand(batchGetParams),
+    );
+
+    const matchedUsers = matchResult?.Responses?.users || [];
+
+    res.status(200).json({ matches: matchedUsers });
+  } catch (error) {
+    console.log('Error getting matches', error);
   }
 });
 

@@ -30,6 +30,7 @@ import ShowPromptsScreen from '../screens/ShowPromptScreen';
 import WritePrompt from '../screens/WritePromptScren';
 import PreFinalScreen from '../screens/PreFinalScreen';
 import DatingType from '../screens/DatingTypeScreen';
+import HandleLikeScreen from '../screens/HandleLikeScreen';
 
 // import all your screens as before...
 
@@ -139,6 +140,7 @@ const StackNavigator = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={BottomTabs} />
       <Stack.Screen name="SendLike" component={SendLikeScreen} />
+      <Stack.Screen name="HandleLike" component={HandleLikeScreen} />
     </Stack.Navigator>
   );
 
