@@ -18,6 +18,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../url/url';
 import { AuthContext } from '../../AuthContext';
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -47,6 +48,7 @@ const LikesScreen = () => {
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState('Recent');
   const { userId } = useContext(AuthContext);
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     fetchReceivedLikes();
@@ -66,9 +68,38 @@ const LikesScreen = () => {
     }
   };
 
+  // Group likes by user to get all interactions from each user
+  const getGroupedLikesByUser = () => {
+    const userMap = new Map();
+
+    likes.forEach(like => {
+      const userId = like.user.userId;
+      if (!userMap.has(userId)) {
+        userMap.set(userId, {
+          user: like.user,
+          interactions: [],
+        });
+      }
+      userMap.get(userId).interactions.push({
+        type: like.type,
+        comment: like.comment,
+        prompt: like.prompt,
+        image: like.image,
+      });
+    });
+
+    return Array.from(userMap.values());
+  };
+
+  // Get all interactions for a specific user
+  const getUserInteractions = (targetUserId: string) => {
+    return likes.filter(like => like.user.userId === targetUserId);
+  };
+
   const renderFeaturedLike = () => {
     if (likes.length === 0) return null;
     const featured = likes[0];
+    const userInteractions = getUserInteractions(featured.user.userId);
 
     const displayImage =
       featured.type === 'image'
@@ -76,7 +107,16 @@ const LikesScreen = () => {
         : featured.user.imageUrls[0] || 'https://via.placeholder.com/400x600';
 
     return (
-      <TouchableOpacity style={styles.featuredCard} activeOpacity={0.95}>
+      <TouchableOpacity
+        style={styles.featuredCard}
+        activeOpacity={0.95}
+        onPress={() =>
+          navigation.navigate('HandleLike', {
+            user: featured.user,
+            interactions: userInteractions,
+          })
+        }
+      >
         <Image source={{ uri: displayImage }} style={styles.featuredImage} />
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.8)']}
@@ -88,6 +128,10 @@ const LikesScreen = () => {
             </View>
             <Text style={styles.featuredName}>
               {featured.user.firstName.trim()}
+            </Text>
+            <Text style={styles.interactionCount}>
+              {userInteractions.length} interaction
+              {userInteractions.length > 1 ? 's' : ''}
             </Text>
             {featured.comment && (
               <Text style={styles.featuredComment} numberOfLines={2}>
@@ -118,13 +162,24 @@ const LikesScreen = () => {
   const renderLikeCard = ({ item, index }: { item: Like; index: number }) => {
     if (index === 0) return null; // Skip first item as it's featured
 
+    const userInteractions = getUserInteractions(item.user.userId);
     const displayImage =
       item.type === 'image'
         ? item.image
         : item.user.imageUrls[0] || 'https://via.placeholder.com/300x400';
 
     return (
-      <TouchableOpacity style={styles.likeCard} activeOpacity={0.9}>
+      <TouchableOpacity
+        style={styles.likeCard}
+        activeOpacity={0.9}
+        onPress={() =>
+          navigation.navigate('HandleLike', {
+            user: item.user,
+            interactions: userInteractions,
+            // item: featured ,
+          })
+        }
+      >
         <Image source={{ uri: displayImage }} style={styles.likeImage} />
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.7)']}
@@ -133,6 +188,10 @@ const LikesScreen = () => {
           <View style={styles.likeContent}>
             <Text style={styles.likeName} numberOfLines={1}>
               {item.user.firstName.trim()}
+            </Text>
+            <Text style={styles.interactionCountSmall}>
+              {userInteractions.length} interaction
+              {userInteractions.length > 1 ? 's' : ''}
             </Text>
             {item.comment && (
               <Text style={styles.likeComment} numberOfLines={2}>
@@ -381,6 +440,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 8,
   },
+  interactionCount: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
   featuredComment: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
@@ -516,6 +581,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  interactionCountSmall: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
     marginBottom: 4,
   },
   likeComment: {
