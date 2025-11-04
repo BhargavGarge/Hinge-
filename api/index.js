@@ -619,29 +619,37 @@ app.post('/login', async (req, res) => {
   }
 });
 
-async function getIndexToRemove(selectedUserId, currentUserId) {
-  const result = await docClient.send(
-    new GetCommand({
-      TableName: 'usercollection',
-      Key: { userId: selectedUserId },
-      ProjectionExpression: 'likedProfiles',
-    }),
-  );
+async function getIndexToRemove(userId, targetUserId) {
+  try {
+    const response = await docClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId: userId },
+      }),
+    );
 
-  const likedProfiles = result?.Item?.likedProfiles || [];
-  return likedProfiles?.findIndex(
-    profile => profile.likedUserId == currentUserId,
-  );
+    const likedProfiles = response?.Item?.likedProfiles || [];
+    const index = likedProfiles.findIndex(profile => profile === targetUserId);
+
+    console.log(`User ${userId} likedProfiles:`, likedProfiles);
+    console.log(`Finding ${targetUserId} in likedProfiles, index:`, index);
+
+    return index;
+  } catch (error) {
+    console.log('Error in getIndexToRemove:', error);
+    return -1;
+  }
 }
 ///create-match endpoint
 app.post('/create-match', authenticateToken, async (req, res) => {
   try {
-    console.log('Hey');
+    console.log('Creating match...');
     const { currentUserId, selectedUserId } = req.body;
 
     console.log('current', currentUserId);
     console.log('selected', selectedUserId);
 
+    // Get current user's receivedLikes
     const userResponse = await docClient.send(
       new GetCommand({
         TableName: 'usercollection',
@@ -649,34 +657,49 @@ app.post('/create-match', authenticateToken, async (req, res) => {
       }),
     );
 
-    const receivedLikes = userResponse?.Item?.receivedLikes || [];
+    if (!userResponse.Item) {
+      console.log('Current user not found');
+      return res.status(404).json({ message: 'Current user not found' });
+    }
 
-    const indexToRemove = receivedLikes.findIndex(
-      like => like.userId == selectedUserId,
-    );
+    const receivedLikes = userResponse.Item.receivedLikes || [];
+    console.log('Received likes count:', receivedLikes.length);
 
-    if (indexToRemove == -1) {
+    // Find ALL indices of the selected user in receivedLikes
+    const indicesToRemove = [];
+    receivedLikes.forEach((like, index) => {
+      if (like.userId === selectedUserId) {
+        indicesToRemove.push(index);
+      }
+    });
+
+    console.log('Indices to remove from receivedLikes:', indicesToRemove);
+
+    if (indicesToRemove.length === 0) {
       return res
         .status(400)
         .json({ message: 'Selected User not found in receivedLikes' });
     }
 
+    // Get the index to remove from selected user's likedProfiles
     const index = await getIndexToRemove(selectedUserId, currentUserId);
+    console.log('Index to remove from likedProfiles:', index);
 
-    if (index == -1) {
+    if (index === -1) {
       return res
         .status(400)
         .json({ message: 'Current user not in likedProfiles' });
     }
 
-    await docClient.send(
+    // Add to matches and remove from likedProfiles for selected user
+    const updateSelectedUser = await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
         Key: { userId: selectedUserId },
         UpdateExpression: `
-        SET #matches = list_append(if_not_exists(#matches, :emptyList), :currentUser)
-        REMOVE #likedProfiles[${index}]
-      `,
+          SET #matches = list_append(if_not_exists(#matches, :emptyList), :currentUser)
+          REMOVE #likedProfiles[${index}]
+        `,
         ExpressionAttributeNames: {
           '#matches': 'matches',
           '#likedProfiles': 'likedProfiles',
@@ -687,8 +710,10 @@ app.post('/create-match', authenticateToken, async (req, res) => {
         },
       }),
     );
+    console.log('Selected user updated');
 
-    await docClient.send(
+    // Add to matches for current user
+    const updateCurrentUser = await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
         Key: { userId: currentUserId },
@@ -703,21 +728,38 @@ app.post('/create-match', authenticateToken, async (req, res) => {
         },
       }),
     );
+    console.log('Current user updated');
 
-    await docClient.send(
-      new UpdateCommand({
-        TableName: 'usercollection',
-        Key: { userId: currentUserId },
-        UpdateExpression: `REMOVE #receivedLikes[${indexToRemove}]`,
-        ExpressionAttributeNames: {
-          '#receivedLikes': 'receivedLikes',
-        },
-      }),
-    );
+    // Remove ALL interactions from receivedLikes for current user
+    // Remove from highest index to lowest to avoid index shifting issues
+    const sortedIndices = indicesToRemove.sort((a, b) => b - a);
 
-    res.status(200).json({ message: 'Match created successfully!' });
+    for (const indexToRemove of sortedIndices) {
+      await docClient.send(
+        new UpdateCommand({
+          TableName: 'usercollection',
+          Key: { userId: currentUserId },
+          UpdateExpression: `REMOVE #receivedLikes[${indexToRemove}]`,
+          ExpressionAttributeNames: {
+            '#receivedLikes': 'receivedLikes',
+          },
+        }),
+      );
+      console.log(`Removed receivedLike at index: ${indexToRemove}`);
+    }
+
+    console.log('All received likes updated');
+
+    res.status(200).json({
+      message: 'Match created successfully!',
+      removedInteractions: indicesToRemove.length,
+    });
   } catch (error) {
-    console.log('Error creating a match', error);
+    console.log('Error creating a match:', error);
+    console.log('Error details:', JSON.stringify(error, null, 2));
+    res
+      .status(500)
+      .json({ message: 'Internal server error', error: error.message });
   }
 });
 

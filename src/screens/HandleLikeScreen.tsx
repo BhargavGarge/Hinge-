@@ -10,12 +10,13 @@ import {
   Pressable,
   Alert,
 } from 'react-native';
-import React from 'react';
+import React, { useContext } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
 import { BASE_URL } from '../url/url';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { AuthContext } from '../../AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -57,7 +58,7 @@ const HandleLikeScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const params = route?.params as RouteParams;
-
+  const { userId } = useContext(AuthContext);
   const handleBack = () => {
     navigation.goBack();
   };
@@ -65,7 +66,7 @@ const HandleLikeScreen = () => {
   const createMatch = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const currentUserId = params?.userId;
+      const currentUserId = userId;
       const selectedUserId = params?.user?.userId;
 
       if (!currentUserId || !selectedUserId) {
