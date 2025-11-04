@@ -18,7 +18,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from '../url/url';
 import { AuthContext } from '../../AuthContext';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
@@ -43,24 +43,52 @@ interface Like {
   };
 }
 
+interface GroupedLike {
+  user: {
+    userId: string;
+    firstName: string;
+    imageUrls: string[];
+    prompts: Array<{
+      question: string;
+      answer: string;
+    }>;
+  };
+  interactions: Array<{
+    type: string;
+    comment?: string;
+    prompt?: {
+      question: string;
+      answer: string;
+    };
+    image?: string;
+  }>;
+}
+
 const LikesScreen = () => {
   const [likes, setLikes] = useState<Like[]>([]);
+  const [groupedLikes, setGroupedLikes] = useState<GroupedLike[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState('Recent');
   const { userId } = useContext(AuthContext);
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
 
   useEffect(() => {
-    fetchReceivedLikes();
-  }, []);
+    if (isFocused) {
+      fetchReceivedLikes();
+    }
+  }, [isFocused]);
 
   const fetchReceivedLikes = async () => {
     try {
+      setLoading(true);
       const token = await AsyncStorage.getItem('token');
       const response = await axios.get(`${BASE_URL}/received-likes/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setLikes(response.data.receivedLikes || []);
+      const receivedLikes = response.data.receivedLikes || [];
+      setLikes(receivedLikes);
+      setGroupedLikes(groupLikesByUser(receivedLikes));
     } catch (error) {
       console.error('Error fetching likes:', error);
     } finally {
@@ -69,10 +97,10 @@ const LikesScreen = () => {
   };
 
   // Group likes by user to get all interactions from each user
-  const getGroupedLikesByUser = () => {
+  const groupLikesByUser = (likesList: Like[]): GroupedLike[] => {
     const userMap = new Map();
 
-    likes.forEach(like => {
+    likesList.forEach(like => {
       const userId = like.user.userId;
       if (!userMap.has(userId)) {
         userMap.set(userId, {
@@ -91,20 +119,18 @@ const LikesScreen = () => {
     return Array.from(userMap.values());
   };
 
-  // Get all interactions for a specific user
-  const getUserInteractions = (targetUserId: string) => {
-    return likes.filter(like => like.user.userId === targetUserId);
-  };
-
   const renderFeaturedLike = () => {
-    if (likes.length === 0) return null;
-    const featured = likes[0];
-    const userInteractions = getUserInteractions(featured.user.userId);
+    if (groupedLikes.length === 0) return null;
+    const featured = groupedLikes[0];
 
+    // Use the first image from interactions or user's profile image
+    const firstImageInteraction = featured.interactions.find(
+      interaction => interaction.type === 'image',
+    );
     const displayImage =
-      featured.type === 'image'
-        ? featured.image
-        : featured.user.imageUrls[0] || 'https://via.placeholder.com/400x600';
+      firstImageInteraction?.image ||
+      featured.user.imageUrls[0] ||
+      'https://via.placeholder.com/400x600';
 
     return (
       <TouchableOpacity
@@ -113,7 +139,8 @@ const LikesScreen = () => {
         onPress={() =>
           navigation.navigate('HandleLike', {
             user: featured.user,
-            interactions: userInteractions,
+            interactions: featured.interactions,
+            onMatchSuccess: fetchReceivedLikes, // Pass refresh callback
           })
         }
       >
@@ -130,25 +157,32 @@ const LikesScreen = () => {
               {featured.user.firstName.trim()}
             </Text>
             <Text style={styles.interactionCount}>
-              {userInteractions.length} interaction
-              {userInteractions.length > 1 ? 's' : ''}
+              {featured.interactions.length} interaction
+              {featured.interactions.length > 1 ? 's' : ''}
             </Text>
-            {featured.comment && (
+
+            {/* Show first comment if available */}
+            {featured.interactions[0]?.comment && (
               <Text style={styles.featuredComment} numberOfLines={2}>
-                "{featured.comment}"
+                "{featured.interactions[0].comment}"
               </Text>
             )}
-            {featured.type === 'prompt' && featured.prompt && (
-              <View style={styles.promptContainer}>
-                <Text style={styles.promptQuestion} numberOfLines={1}>
-                  {featured.prompt.question}
-                </Text>
-                <Text style={styles.promptAnswer} numberOfLines={2}>
-                  {featured.prompt.answer}
-                </Text>
-              </View>
-            )}
-            {featured.type === 'image' && (
+
+            {/* Show prompt info if first interaction is a prompt */}
+            {featured.interactions[0]?.type === 'prompt' &&
+              featured.interactions[0]?.prompt && (
+                <View style={styles.promptContainer}>
+                  <Text style={styles.promptQuestion} numberOfLines={1}>
+                    {featured.interactions[0].prompt.question}
+                  </Text>
+                  <Text style={styles.promptAnswer} numberOfLines={2}>
+                    {featured.interactions[0].prompt.answer}
+                  </Text>
+                </View>
+              )}
+
+            {/* Show like type indicator */}
+            {featured.interactions[0]?.type === 'image' && (
               <View style={styles.likeTypeIndicator}>
                 <Text style={styles.likeTypeText}>❤️ Liked your photo</Text>
               </View>
@@ -159,14 +193,23 @@ const LikesScreen = () => {
     );
   };
 
-  const renderLikeCard = ({ item, index }: { item: Like; index: number }) => {
+  const renderLikeCard = ({
+    item,
+    index,
+  }: {
+    item: GroupedLike;
+    index: number;
+  }) => {
     if (index === 0) return null; // Skip first item as it's featured
 
-    const userInteractions = getUserInteractions(item.user.userId);
+    // Use the first image from interactions or user's profile image
+    const firstImageInteraction = item.interactions.find(
+      interaction => interaction.type === 'image',
+    );
     const displayImage =
-      item.type === 'image'
-        ? item.image
-        : item.user.imageUrls[0] || 'https://via.placeholder.com/300x400';
+      firstImageInteraction?.image ||
+      item.user.imageUrls[0] ||
+      'https://via.placeholder.com/300x400';
 
     return (
       <TouchableOpacity
@@ -175,8 +218,8 @@ const LikesScreen = () => {
         onPress={() =>
           navigation.navigate('HandleLike', {
             user: item.user,
-            interactions: userInteractions,
-            // item: featured ,
+            interactions: item.interactions,
+            onMatchSuccess: fetchReceivedLikes, // Pass refresh callback
           })
         }
       >
@@ -190,20 +233,25 @@ const LikesScreen = () => {
               {item.user.firstName.trim()}
             </Text>
             <Text style={styles.interactionCountSmall}>
-              {userInteractions.length} interaction
-              {userInteractions.length > 1 ? 's' : ''}
+              {item.interactions.length} interaction
+              {item.interactions.length > 1 ? 's' : ''}
             </Text>
-            {item.comment && (
+
+            {/* Show first comment if available */}
+            {item.interactions[0]?.comment && (
               <Text style={styles.likeComment} numberOfLines={2}>
-                {item.comment}
+                {item.interactions[0].comment}
               </Text>
             )}
-            {item.type === 'prompt' && item.prompt && (
-              <Text style={styles.likeTypeSmall} numberOfLines={1}>
-                💬 {item.prompt.question}
-              </Text>
-            )}
-            {item.type === 'image' && (
+
+            {/* Show interaction type */}
+            {item.interactions[0]?.type === 'prompt' &&
+              item.interactions[0]?.prompt && (
+                <Text style={styles.likeTypeSmall} numberOfLines={1}>
+                  💬 {item.interactions[0].prompt.question}
+                </Text>
+              )}
+            {item.interactions[0]?.type === 'image' && (
               <Text style={styles.likeTypeSmall}>❤️ Photo</Text>
             )}
           </View>
@@ -275,14 +323,14 @@ const LikesScreen = () => {
         </View>
       </View>
 
-      {likes.length === 0 ? (
+      {groupedLikes.length === 0 ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {renderEmptyState()}
         </ScrollView>
       ) : (
         <FlatList
-          data={likes}
-          keyExtractor={(item, index) => `${item.userId}-${index}`}
+          data={groupedLikes}
+          keyExtractor={item => item.user.userId}
           ListHeaderComponent={
             <View>
               {renderFeaturedLike()}
@@ -312,7 +360,9 @@ const LikesScreen = () => {
               {/* Section Title */}
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>All Likes</Text>
-                <Text style={styles.sectionCount}>{likes.length - 1}</Text>
+                <Text style={styles.sectionCount}>
+                  {groupedLikes.length - 1}
+                </Text>
               </View>
             </View>
           }
