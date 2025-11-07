@@ -534,6 +534,83 @@ app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
+// app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
+//   const { userId } = req.params;
+//   console.log('🔍 Fetching received likes for user:', userId);
+
+//   try {
+//     const params = {
+//       TableName: 'usercollection',
+//       Key: { userId },
+//       ProjectionExpression: 'receivedLikes',
+//     };
+//     const data = await docClient.send(new GetCommand(params));
+//     console.log('📦 Raw user data:', JSON.stringify(data, null, 2));
+
+//     if (!data.Item) return res.status(404).json({ message: 'User not found' });
+
+//     const receivedLikes = data.Item?.receivedLikes || [];
+//     console.log(
+//       '💖 Raw receivedLikes:',
+//       JSON.stringify(receivedLikes, null, 2),
+//     );
+
+//     // Enrich likes with user info (if available)
+//     const enrichedLikes = await Promise.all(
+//       receivedLikes.map(async like => {
+//         try {
+//           const userParams = {
+//             TableName: 'usercollection',
+//             Key: { userId: like.userId },
+//             ProjectionExpression: 'userId, firstName, imageUrls, prompts',
+//           };
+
+//           const userData = await docClient.send(new GetCommand(userParams));
+//           const user = userData?.Item
+//             ? {
+//                 userId: userData.Item.userId,
+//                 firstName: userData.Item.firstName,
+//                 imageUrls: userData.Item.imageUrls || null,
+//                 prompts: userData.Item.prompts || [],
+//               }
+//             : {
+//                 userId: like.userId,
+//                 firstName: 'Unknown User',
+//                 imageUrls: null,
+//                 prompts: [],
+//               };
+
+//           return {
+//             ...like,
+//             user,
+//             // Ensure we only have one interaction type
+//             type: like.type, // "prompt" or "image"
+//             comment: like.comment,
+//             prompt: like.prompt,
+//             image: like.image,
+//           };
+//         } catch (error) {
+//           console.log('❌ Error fetching user for like:', error);
+//           return {
+//             ...like,
+//             user: {
+//               userId: like.userId,
+//               firstName: 'Unknown User',
+//               imageUrls: null,
+//               prompts: [],
+//             },
+//           };
+//         }
+//       }),
+//     );
+
+//     console.log('✨ Enriched likes:', JSON.stringify(enrichedLikes, null, 2));
+//     res.status(200).json({ receivedLikes: enrichedLikes });
+//   } catch (error) {
+//     console.log('❌ Error getting likes:', error);
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// });
 
 // Temporary test endpoint without authentication
 app.get('/test-received-likes/:userId', async (req, res) => {
