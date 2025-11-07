@@ -20,7 +20,8 @@ import { AuthContext } from '../../AuthContext';
 
 const { width } = Dimensions.get('window');
 
-interface Interaction {
+interface Like {
+  userId: string;
   type: 'prompt' | 'image';
   comment?: string;
   prompt?: {
@@ -28,21 +29,30 @@ interface Interaction {
     answer: string;
   };
   image?: string;
-}
-
-interface User {
-  userId: string;
-  firstName: string;
-  imageUrls: string[];
-  prompts: Array<{
-    question: string;
-    answer: string;
-  }>;
+  user: {
+    userId: string;
+    firstName: string;
+    imageUrls: string[];
+    prompts: Array<{
+      question: string;
+      answer: string;
+    }>;
+  };
+  timestamp?: string;
 }
 
 interface RouteParams {
-  user?: User;
-  interactions?: Interaction[];
+  user?: {
+    userId: string;
+    firstName: string;
+    imageUrls: string[];
+    prompts: Array<{
+      question: string;
+      answer: string;
+    }>;
+  };
+  like?: Like;
+  onMatchSuccess?: () => void;
   name?: string;
   imageUrls?: string[];
   prompts?: Array<{
@@ -59,6 +69,7 @@ const HandleLikeScreen = () => {
   const route = useRoute();
   const params = route?.params as RouteParams;
   const { userId } = useContext(AuthContext);
+
   const handleBack = () => {
     navigation.goBack();
   };
@@ -67,7 +78,7 @@ const HandleLikeScreen = () => {
     try {
       const token = await AsyncStorage.getItem('token');
       const currentUserId = userId;
-      const selectedUserId = params?.user?.userId;
+      const selectedUserId = params?.user?.userId || params?.like?.userId;
 
       if (!currentUserId || !selectedUserId) {
         Alert.alert('Error', 'User information is missing');
@@ -89,6 +100,8 @@ const HandleLikeScreen = () => {
 
       if (response.status === 200) {
         Alert.alert('Success', 'Match created successfully!');
+        // Call the success callback if provided
+        params?.onMatchSuccess?.();
         navigation.goBack();
       }
     } catch (error) {
@@ -98,7 +111,8 @@ const HandleLikeScreen = () => {
   };
 
   const match = () => {
-    const userName = params?.user?.firstName || params?.name || 'this user';
+    const userName =
+      params?.user?.firstName || params?.like?.user?.firstName || 'this user';
     Alert.alert('Accept Request?', `Match with ${userName}?`, [
       {
         text: 'Cancel',
@@ -109,7 +123,11 @@ const HandleLikeScreen = () => {
     ]);
   };
 
-  if (!params?.user || !params?.interactions) {
+  // Get the like data from either params.like or convert old format
+  const like = params?.like;
+  const user = params?.user || like?.user;
+
+  if (!user || !like) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -122,12 +140,20 @@ const HandleLikeScreen = () => {
     );
   }
 
-  const { user, interactions } = params;
+  // Convert single like to interactions array for compatibility
+  const interactions = [
+    {
+      type: like.type,
+      comment: like.comment,
+      prompt: like.prompt,
+      image: like.image,
+    },
+  ];
 
   // Safe access to route params with fallbacks
-  const userName = params.name || user.firstName;
-  const imageUrls = params.imageUrls || user.imageUrls || [];
-  const prompts = params.prompts || user.prompts || [];
+  const userName = user.firstName;
+  const imageUrls = user.imageUrls || [];
+  const prompts = user.prompts || [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -164,9 +190,7 @@ const HandleLikeScreen = () => {
                 <Text style={styles.heartEmoji}>❤️</Text>
               </View>
               <Text style={styles.interactionText}>
-                {interactions.length}{' '}
-                {interactions.length === 1 ? 'like' : 'likes'} from{' '}
-                {user.firstName}
+                Liked your {like.type === 'prompt' ? 'prompt' : 'photo'}
               </Text>
             </View>
           </View>
@@ -283,9 +307,6 @@ const HandleLikeScreen = () => {
               <View style={styles.newBadge}>
                 <Text style={styles.newBadgeText}>new here</Text>
               </View>
-            </View>
-            <View style={styles.headerIcons}>
-              {/* <Entypo name="dots-three-horizontal" size={22} color="black" /> */}
             </View>
           </View>
 
@@ -468,6 +489,7 @@ const HandleLikeScreen = () => {
   );
 };
 
+// Keep all the same styles...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
