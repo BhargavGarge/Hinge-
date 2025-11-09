@@ -31,6 +31,7 @@ import WritePrompt from '../screens/WritePromptScren';
 import PreFinalScreen from '../screens/PreFinalScreen';
 import DatingType from '../screens/DatingTypeScreen';
 import HandleLikeScreen from '../screens/HandleLikeScreen';
+import ChatRoom from '../screens/ChatRoom';
 
 // import all your screens as before...
 
@@ -141,6 +142,7 @@ const StackNavigator = () => {
       <Stack.Screen name="Main" component={BottomTabs} />
       <Stack.Screen name="SendLike" component={SendLikeScreen} />
       <Stack.Screen name="HandleLike" component={HandleLikeScreen} />
+      <Stack.Screen name="ChatRoom" component={ChatRoom} />
     </Stack.Navigator>
   );
 
