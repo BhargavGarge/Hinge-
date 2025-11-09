@@ -13,7 +13,7 @@ import {
   ResendConfirmationCodeCommand,
   InitiateAuthCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
@@ -24,7 +24,7 @@ import {
   BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
-
+import { Server, Socket } from 'socket.io';
 configDotenv();
 
 const app = express();
@@ -61,7 +61,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || 'eu-north-1',
 });
-
+const server = http.createServer(app);
 const COGNITO_CLIENT_ID =
   process.env.COGNITO_CLIENT_ID || '6b711i0jdq8o77ptl6a39ejee4';
 
@@ -879,9 +879,83 @@ app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
     console.log('Error getting matches', error);
   }
 });
+server.listen(4000, () => {
+  console.log(' IO Server is running on port 4000');
+});
 
-const server = http.createServer(app);
+//socket io
+const io = new Server(server);
 
+const userSocketMap = {};
+
+io.on('connection', socket => {
+  const userId = socket.handshake.query.userId;
+
+  if (userId !== undefined) {
+    userSocketMap[userId] = socket.id;
+  }
+
+  console.log('User socket data', userSocketMap);
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected', socket.id);
+    delete userSocketMap[userId];
+  });
+  socket.on('sendMessage', ({ senderId, receiverId, message }) => {
+    const receiverSocketId = userSocketMap[receiverId];
+
+    console.log('receiver ID', receiverId);
+
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('receiveMessage', {
+        senderId,
+        message,
+      });
+    }
+  });
+});
+app.post('/sendMessage', async (req, res) => {
+  try {
+    const { senderId, receiverId, message } = req.body;
+
+    if (!senderId || !receiverId || !message) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+
+    const messageId = crypto.randomUUID();
+
+    const params = {
+      TableName: 'messages',
+      Item: {
+        messageId: { S: messageId },
+        senderId: { S: senderId },
+        receiverId: { S: receiverId },
+        message: { S: message },
+        timestamp: { S: new Date().toISOString() },
+      },
+    };
+
+    const command = new PutItemCommand(params);
+    await dynamoDbClient.send(command);
+
+    const receiverSocketId = userSocketMap[receiverId];
+    if (receiverSocketId) {
+      console.log('Emitting new message to the reciever', receiverId);
+      io.to(receiverSocketId).emit('newMessage', {
+        senderId,
+        receiverId,
+        message,
+      });
+    } else {
+      console.log('Receiver socket ID not found');
+    }
+
+    res.status(201).json({ message: 'Message sent successfully!' });
+  } catch (error) {
+    console.log('Error', error);
+    res.status(500).json({ message: 'internal server error' });
+  }
+});
 server.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log('🚀 SERVER STARTED SUCCESSFULLY!');
