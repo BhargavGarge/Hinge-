@@ -1,3 +1,5 @@
+'use client';
+
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,92 +9,108 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from 'react-native';
-import React, { useState, useContext, useEffect, useLayoutEffect } from 'react';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-
-import { AuthContext } from '../../AuthContext';
+import {
+  useState,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import axios from 'axios';
 import { BASE_URL } from '../url/url';
+import { AuthContext } from '../../AuthContext';
 import { useSocketContext } from '../../SocketContext';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
+import type { Message } from '../../types'; // adjust to your type path
 
-// Define types
-type RootStackParamList = {
-  ChatRoom: {
-    image: string;
-    name: string;
-    receiverId: string;
-    senderId: string;
-  };
-};
-
-type ChatRoomRouteProp = RouteProp<RootStackParamList, 'ChatRoom'>;
-type ChatRoomNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  'ChatRoom'
+type ChatRoomNavigationProp = NativeStackNavigationProp<any>;
+type ChatRoomRouteProp = RouteProp<
+  { params: { receiverId: string; name: string; image: string } },
+  'params'
 >;
 
-interface Message {
-  _id?: string;
-  senderId: string;
-  receiverId: string;
-  message: string;
-  timestamp?: string;
-  shouldShake?: boolean;
-}
-
 const ChatRoom = () => {
+  // 🔹 Always call hooks in the same order — no conditions
   const navigation = useNavigation<ChatRoomNavigationProp>();
   const route = useRoute<ChatRoomRouteProp>();
-  const [message, setMessage] = useState<string>('');
-  const { userId } = useContext(AuthContext);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const { socket } = useSocketContext();
+  const { userId } = useContext(AuthContext) || { userId: null };
+  const { socket } = useSocketContext() || { socket: null };
 
+  const [message, setMessage] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // 🔹 Navigation Header
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: '',
+      headerStyle: {
+        backgroundColor: '#FFFFFF',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
       headerLeft: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Ionicons
+        <View style={styles.headerLeft}>
+          <Pressable
             onPress={() => navigation.goBack()}
-            name="arrow-back"
-            size={24}
-            color="black"
+            style={styles.backButton}
+          >
+            <Ionicons name="chevron-back" size={28} color="#1A1A1A" />
+          </Pressable>
+          <Image
+            source={{
+              uri: route.params?.image || 'https://via.placeholder.com/40',
+            }}
+            style={styles.headerAvatar}
           />
-          <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-            {route.params?.name}
-          </Text>
+          <View>
+            <Text style={styles.headerName}>{route.params?.name}</Text>
+            <Text style={styles.headerStatus}>Active now</Text>
+          </View>
         </View>
       ),
       headerRight: () => (
-        <Ionicons name="videocam-outline" size={24} color="black" />
+        <View style={styles.headerRight}>
+          <Pressable style={styles.headerIconButton}>
+            <Ionicons name="videocam" size={24} color="#FF6B9D" />
+          </Pressable>
+          <Pressable style={styles.headerIconButton}>
+            <Ionicons name="ellipsis-horizontal" size={24} color="#1A1A1A" />
+          </Pressable>
+        </View>
       ),
     });
-  }, [navigation, route.params?.name]);
+  }, [navigation, route.params?.name, route.params?.image]);
 
+  // 🔹 Fetch messages safely
   const fetchMessages = async (): Promise<void> => {
     try {
       const senderId = userId;
       const receiverId = route.params?.receiverId;
-
-      if (!senderId || !receiverId) {
-        console.log('Missing senderId or receiverId');
-        return;
-      }
+      if (!senderId || !receiverId) return;
 
       const response = await axios.get<Message[]>(`${BASE_URL}/messages`, {
         params: { senderId, receiverId },
       });
 
-      setMessages(response.data);
+      if (response.data) {
+        setMessages(response.data);
+      }
     } catch (error) {
-      console.log('Error fetching messages', error);
+      console.log('Error fetching messages:', error);
     }
   };
 
+  // 🔹 Send message
   const sendMessage = async (): Promise<void> => {
     try {
       const senderId = userId;
@@ -103,52 +121,49 @@ const ChatRoom = () => {
         return;
       }
 
-      // Clear message input immediately for better UX
       const messageToSend = message;
       setMessage('');
 
-      // Send message to backend
       await axios.post(`${BASE_URL}/sendMessage`, {
         senderId,
         receiverId,
         message: messageToSend,
       });
 
-      // Emit socket event
       socket?.emit('sendMessage', {
         senderId,
         receiverId,
         message: messageToSend,
       });
 
-      // Refresh messages after a short delay
+      // Refresh messages
       setTimeout(() => {
         fetchMessages();
+        scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (error) {
-      console.log('Error sending message', error);
-      // Optionally, you could show an error message to the user here
+      console.log('Error sending message:', error);
     }
   };
 
+  // 🔹 Initial fetch
   useEffect(() => {
     fetchMessages();
   }, []);
 
+  // 🔹 Listen for new socket messages
   useEffect(() => {
-    // Socket message listener
+    if (!socket) return;
+
     const handleNewMessage = (newMessage: Message) => {
-      setMessages(prevMessages => [
-        ...prevMessages,
-        { ...newMessage, shouldShake: true },
-      ]);
+      setMessages(prev => [...prev, { ...newMessage, shouldShake: true }]);
+      scrollViewRef.current?.scrollToEnd({ animated: true });
     };
 
-    socket?.on('newMessage', handleNewMessage);
+    socket.on('newMessage', handleNewMessage);
 
-    // Cleanup function
     return () => {
-      socket?.off('newMessage', handleNewMessage);
+      socket.off('newMessage', handleNewMessage);
     };
   }, [socket]);
 
@@ -158,95 +173,115 @@ const ChatRoom = () => {
     <KeyboardAvoidingView
       keyboardVerticalOffset={keyboardVerticalOffset}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1, backgroundColor: 'white' }}
+      style={styles.container}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        ref={scrollViewRef}
+        contentContainerStyle={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={() =>
+          scrollViewRef.current?.scrollToEnd({ animated: true })
+        }
       >
-        {messages?.map((item, index) => (
-          <Pressable
-            style={[
-              item.senderId === userId
-                ? {
-                    alignSelf: 'flex-end',
-                    backgroundColor: '#5b0d63',
-                    padding: 10,
-                    maxWidth: '60%',
-                    borderRadius: 7,
-                    margin: 10,
-                  }
-                : {
-                    alignSelf: 'flex-start',
-                    backgroundColor: '#e1e3e3',
-                    padding: 10,
-                    maxWidth: '60%',
-                    borderRadius: 7,
-                    margin: 10,
-                  },
-            ]}
-            key={item._id || index}
-          >
-            <Text
-              style={{
-                fontSize: 15,
-                textAlign: 'left',
-                letterSpacing: 0.3,
-                color: item.senderId === userId ? 'white' : 'black',
-              }}
-            >
-              {item.message}
-            </Text>
-          </Pressable>
-        ))}
+        {messages.map((item, index) => {
+          const isMyMessage = item.senderId === userId;
+          const showTimestamp =
+            index === 0 ||
+            new Date(item.timestamp || '').getTime() -
+              new Date(messages[index - 1]?.timestamp || '').getTime() >
+              300000;
+
+          return (
+            <View key={item._id || index}>
+              {showTimestamp && item.timestamp && (
+                <View style={styles.timestampContainer}>
+                  <Text style={styles.timestampText}>
+                    {new Date(item.timestamp).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              )}
+
+              <View
+                style={[
+                  styles.messageRow,
+                  isMyMessage ? styles.myMessageRow : styles.theirMessageRow,
+                ]}
+              >
+                {!isMyMessage && (
+                  <Image
+                    source={{
+                      uri:
+                        route.params?.image || 'https://via.placeholder.com/32',
+                    }}
+                    style={styles.messageAvatar}
+                  />
+                )}
+
+                {isMyMessage ? (
+                  <LinearGradient
+                    colors={['#FF6B9D', '#C06C84']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.messageBubble, styles.myMessage]}
+                  >
+                    <Text style={styles.myMessageText}>{item.message}</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.messageBubble, styles.theirMessage]}>
+                    <Text style={styles.theirMessageText}>{item.message}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
 
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 10,
-          paddingVertical: 10,
-          borderTopWidth: 1,
-          borderTopColor: '#dddddd',
-          marginBottom: Platform.OS === 'ios' ? 0 : 30,
-          gap: 12,
-        }}
-      >
-        <TextInput
-          value={message}
-          onChangeText={setMessage}
-          placeholderTextColor="gray"
-          placeholder="Type your message..."
-          style={{
-            flex: 1,
-            borderColor: '#dddddd',
-            borderWidth: 1,
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            height: 40,
-            fontSize: 15,
-          }}
-          multiline={false}
-        />
+      <View style={styles.inputContainer}>
+        <View style={styles.inputWrapper}>
+          <Pressable style={styles.inputIconButton}>
+            <Ionicons name="add-circle" size={28} color="#FF6B9D" />
+          </Pressable>
+
+          <TextInput
+            value={message}
+            onChangeText={setMessage}
+            placeholderTextColor="#999"
+            placeholder="Type a message..."
+            style={styles.input}
+            multiline
+            maxLength={500}
+          />
+
+          <Pressable style={styles.inputIconButton}>
+            <Ionicons name="image" size={24} color="#666" />
+          </Pressable>
+        </View>
+
         <Pressable
           onPress={sendMessage}
           disabled={!message.trim()}
-          style={{
-            backgroundColor: message.trim() ? '#662d91' : '#cccccc',
-            paddingVertical: 8,
-            borderRadius: 20,
-            paddingHorizontal: 12,
-          }}
+          style={styles.sendButtonContainer}
         >
-          <Text
-            style={{
-              textAlign: 'center',
-              color: message.trim() ? 'white' : '#666666',
-            }}
+          <LinearGradient
+            colors={
+              message.trim() ? ['#FF6B9D', '#C06C84'] : ['#E0E0E0', '#E0E0E0']
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.sendButton}
           >
-            Send
-          </Text>
+            <Ionicons
+              name="send"
+              size={20}
+              color={message.trim() ? '#FFFFFF' : '#999'}
+            />
+          </LinearGradient>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -255,4 +290,120 @@ const ChatRoom = () => {
 
 export default ChatRoom;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F8F8',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  backButton: { marginRight: 4 },
+  headerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FF6B9D',
+  },
+  headerName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  headerStatus: { fontSize: 12, color: '#4CAF50', fontWeight: '500' },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginRight: 12,
+  },
+  headerIconButton: { padding: 4 },
+  messagesContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  timestampContainer: { alignItems: 'center', marginVertical: 16 },
+  timestampText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  messageRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'flex-end' },
+  myMessageRow: { justifyContent: 'flex-end' },
+  theirMessageRow: { justifyContent: 'flex-start' },
+  messageAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: '#FF6B9D',
+  },
+  messageBubble: {
+    maxWidth: '75%',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  myMessage: { borderBottomRightRadius: 4 },
+  theirMessage: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4 },
+  myMessageText: { fontSize: 15, color: '#FFFFFF', lineHeight: 20 },
+  theirMessageText: { fontSize: 15, color: '#1A1A1A', lineHeight: 20 },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+    marginBottom: Platform.OS === 'ios' ? 0 : 30,
+    gap: 8,
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 24,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  inputIconButton: { padding: 6 },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1A1A1A',
+    maxHeight: 100,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  sendButtonContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#FF6B9D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+  },
+});

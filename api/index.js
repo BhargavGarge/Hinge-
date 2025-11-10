@@ -23,15 +23,17 @@ import {
   QueryCommand,
   BatchGetCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { unmarshall } from '@aws-sdk/util-dynamodb';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
+
 configDotenv();
 
 const app = express();
+const server = http.createServer(app);
 
 // 🎯 LOG 1: Server starting
 console.log('🚀 STARTING SERVER...');
 
+// Middleware
 app.use(
   cors({
     origin: '*',
@@ -45,7 +47,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 9000;
 
-// AWS DynamoDB low-level client (for credentials/region)
+// AWS Configuration
 const dynamoDbClient = new DynamoDBClient({
   region: process.env.AWS_REGION || 'eu-north-1',
   credentials: {
@@ -54,21 +56,27 @@ const dynamoDbClient = new DynamoDBClient({
   },
 });
 
-// Use the Document client wrapper for easier JS object handling
 const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
 
-// Initialize Cognito Client
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || 'eu-north-1',
 });
-const server = http.createServer(app);
+
 const COGNITO_CLIENT_ID =
   process.env.COGNITO_CLIENT_ID || '6b711i0jdq8o77ptl6a39ejee4';
-
-// Shared JWT secret (use env var)
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
-// 🎯 LOG 3: Middleware for request logging
+// Socket.IO Setup
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+});
+
+const userSocketMap = {};
+
+// Request logging middleware
 app.use((req, res, next) => {
   console.log('📥 INCOMING REQUEST:', {
     timestamp: new Date().toISOString(),
@@ -83,7 +91,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// Test endpoint
+// ==================== AUTHENTICATION MIDDLEWARE ====================
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Token is required' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Token is required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      console.log('❌ JWT VERIFY ERROR:', err.message);
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// ==================== HEALTH CHECK ENDPOINT ====================
 app.get('/health', (req, res) => {
   res.json({
     status: 'Server is running',
@@ -91,6 +122,8 @@ app.get('/health', (req, res) => {
     region: process.env.AWS_REGION || 'eu-north-1',
   });
 });
+
+// ==================== AUTH ENDPOINTS ====================
 
 // Send OTP endpoint
 app.post('/sendOtp', async (req, res) => {
@@ -245,6 +278,136 @@ app.post('/register', async (req, res) => {
   }
 });
 
+// Login endpoint
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  console.log('Email', email);
+  console.log('password', password ? '***' : null);
+
+  const authParams = {
+    AuthFlow: 'USER_PASSWORD_AUTH',
+    ClientId: COGNITO_CLIENT_ID,
+    AuthParameters: {
+      USERNAME: email,
+      PASSWORD: password,
+    },
+  };
+
+  try {
+    const authCommand = new InitiateAuthCommand(authParams);
+    const authResult = await cognitoClient.send(authCommand);
+    const { IdToken, AccessToken, RefreshToken } =
+      authResult.AuthenticationResult || {};
+
+    const userQueryParams = {
+      TableName: 'usercollection',
+      IndexName: 'email-index',
+      KeyConditionExpression: 'email = :emailValue',
+      ExpressionAttributeValues: {
+        ':emailValue': email,
+      },
+    };
+
+    const userResult = await docClient.send(new QueryCommand(userQueryParams));
+
+    if (!userResult.Items || userResult.Items.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = userResult.Items[0];
+    const userId = user?.userId;
+
+    const token = jwt.sign({ userId: userId, email: email }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.status(200).json({ token, IdToken, AccessToken, RefreshToken });
+  } catch (error) {
+    console.log('Error in /login:', error);
+    return res
+      .status(500)
+      .json({ message: 'Internal server error', details: error.message });
+  }
+});
+
+// ==================== USER PROFILE ENDPOINTS ====================
+
+// User info endpoint
+app.get('/user-info', async (req, res) => {
+  const { userId } = req.query;
+  console.log('Fetching user info for:', userId);
+
+  if (!userId) return res.status(400).json({ message: 'User id is required' });
+
+  try {
+    const params = { TableName: 'usercollection', Key: { userId: userId } };
+    const result = await docClient.send(new GetCommand(params));
+    if (!result.Item)
+      return res.status(404).json({ message: 'User not found' });
+
+    res.status(200).json({ success: true, user: result.Item });
+  } catch (error) {
+    console.log('Error fetching user details', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+});
+
+// Update user profile endpoint
+app.put('/update-profile', authenticateToken, async (req, res) => {
+  try {
+    const { userId, updates } = req.body;
+
+    if (req.user.userId !== userId) {
+      return res.status(403).json({ message: 'Unauthorized action' });
+    }
+
+    const updateExpression = [];
+    const expressionAttributeNames = {};
+    const expressionAttributeValues = {};
+
+    Object.keys(updates).forEach(key => {
+      if (updates[key] !== undefined) {
+        updateExpression.push(`#${key} = :${key}`);
+        expressionAttributeNames[`#${key}`] = key;
+        expressionAttributeValues[`:${key}`] = updates[key];
+      }
+    });
+
+    if (updateExpression.length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    const params = {
+      TableName: 'usercollection',
+      Key: { userId },
+      UpdateExpression: `SET ${updateExpression.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW',
+    };
+
+    const result = await docClient.send(new UpdateCommand(params));
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: result.Attributes,
+    });
+  } catch (error) {
+    console.log('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+});
+
+// ==================== MATCHING ENDPOINTS ====================
+
 // Matches endpoint
 app.get('/matches', async (req, res) => {
   const { userId } = req.query;
@@ -322,60 +485,18 @@ app.get('/matches', async (req, res) => {
   }
 });
 
-// User info endpoint
-app.get('/user-info', async (req, res) => {
-  const { userId } = req.query;
-  console.log('Fetching user info for:', userId);
-
-  if (!userId) return res.status(400).json({ message: 'User id is required' });
-
-  try {
-    const params = { TableName: 'usercollection', Key: { userId: userId } };
-    const result = await docClient.send(new GetCommand(params));
-    if (!result.Item)
-      return res.status(404).json({ message: 'User not found' });
-
-    res.status(200).json({ success: true, user: result.Item });
-  } catch (error) {
-    console.log('Error fetching user details', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
-  }
-});
-
-// Auth middleware using the shared secret
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-
-  if (!authHeader)
-    return res.status(401).json({ message: 'Token is required' });
-
-  const token = authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Token is required' });
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      console.log('❌ JWT VERIFY ERROR:', err.message);
-      return res.status(403).json({ message: 'Invalid or expired token' });
-    }
-    req.user = user;
-    next();
-  });
-};
-
+// Like profile endpoint
 app.post('/like-profile', authenticateToken, async (req, res) => {
   const { userId, likedUserId, image, comment = null, type, prompt } = req.body;
 
-  if (req.user.userId !== userId)
+  if (req.user.userId !== userId) {
     return res.status(403).json({ message: 'Unauthorized action' });
-  if (!userId || !likedUserId)
+  }
+  if (!userId || !likedUserId) {
     return res.status(400).json({ message: 'Missing required parameters' });
+  }
 
   try {
-    // Fetch current user using docClient
     const userData = await docClient.send(
       new GetCommand({ TableName: 'usercollection', Key: { userId } }),
     );
@@ -432,7 +553,6 @@ app.post('/like-profile', authenticateToken, async (req, res) => {
     }
     if (comment) newLike.comment = comment;
 
-    // Append newLike to liked user's receivedLikes
     await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
@@ -443,7 +563,6 @@ app.post('/like-profile', authenticateToken, async (req, res) => {
       }),
     );
 
-    // Append likedUserId to current user's likedProfiles
     await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
@@ -464,7 +583,7 @@ app.post('/like-profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Received likes endpoint (requires auth)
+// Received likes endpoint
 app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
   const { userId } = req.params;
   console.log('🔍 Fetching received likes for user:', userId);
@@ -486,7 +605,6 @@ app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
       JSON.stringify(receivedLikes, null, 2),
     );
 
-    // Enrich likes with user info (if available)
     const enrichedLikes = await Promise.all(
       receivedLikes.map(async like => {
         try {
@@ -534,83 +652,6 @@ app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 });
-// app.get('/received-likes/:userId', authenticateToken, async (req, res) => {
-//   const { userId } = req.params;
-//   console.log('🔍 Fetching received likes for user:', userId);
-
-//   try {
-//     const params = {
-//       TableName: 'usercollection',
-//       Key: { userId },
-//       ProjectionExpression: 'receivedLikes',
-//     };
-//     const data = await docClient.send(new GetCommand(params));
-//     console.log('📦 Raw user data:', JSON.stringify(data, null, 2));
-
-//     if (!data.Item) return res.status(404).json({ message: 'User not found' });
-
-//     const receivedLikes = data.Item?.receivedLikes || [];
-//     console.log(
-//       '💖 Raw receivedLikes:',
-//       JSON.stringify(receivedLikes, null, 2),
-//     );
-
-//     // Enrich likes with user info (if available)
-//     const enrichedLikes = await Promise.all(
-//       receivedLikes.map(async like => {
-//         try {
-//           const userParams = {
-//             TableName: 'usercollection',
-//             Key: { userId: like.userId },
-//             ProjectionExpression: 'userId, firstName, imageUrls, prompts',
-//           };
-
-//           const userData = await docClient.send(new GetCommand(userParams));
-//           const user = userData?.Item
-//             ? {
-//                 userId: userData.Item.userId,
-//                 firstName: userData.Item.firstName,
-//                 imageUrls: userData.Item.imageUrls || null,
-//                 prompts: userData.Item.prompts || [],
-//               }
-//             : {
-//                 userId: like.userId,
-//                 firstName: 'Unknown User',
-//                 imageUrls: null,
-//                 prompts: [],
-//               };
-
-//           return {
-//             ...like,
-//             user,
-//             // Ensure we only have one interaction type
-//             type: like.type, // "prompt" or "image"
-//             comment: like.comment,
-//             prompt: like.prompt,
-//             image: like.image,
-//           };
-//         } catch (error) {
-//           console.log('❌ Error fetching user for like:', error);
-//           return {
-//             ...like,
-//             user: {
-//               userId: like.userId,
-//               firstName: 'Unknown User',
-//               imageUrls: null,
-//               prompts: [],
-//             },
-//           };
-//         }
-//       }),
-//     );
-
-//     console.log('✨ Enriched likes:', JSON.stringify(enrichedLikes, null, 2));
-//     res.status(200).json({ receivedLikes: enrichedLikes });
-//   } catch (error) {
-//     console.log('❌ Error getting likes:', error);
-//     res.status(500).json({ message: 'Internal server error' });
-//   }
-// });
 
 // Temporary test endpoint without authentication
 app.get('/test-received-likes/:userId', async (req, res) => {
@@ -642,82 +683,7 @@ app.get('/test-received-likes/:userId', async (req, res) => {
   }
 });
 
-// Login endpoint (Cognito + local JWT)
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  console.log('Email', email);
-  console.log('password', password ? '***' : null);
-
-  const authParams = {
-    AuthFlow: 'USER_PASSWORD_AUTH',
-    ClientId: COGNITO_CLIENT_ID,
-    AuthParameters: {
-      USERNAME: email,
-      PASSWORD: password,
-    },
-  };
-
-  try {
-    const authCommand = new InitiateAuthCommand(authParams);
-    const authResult = await cognitoClient.send(authCommand);
-    const { IdToken, AccessToken, RefreshToken } =
-      authResult.AuthenticationResult || {};
-
-    // Fetch user by email from DynamoDB (using docClient Query)
-    const userQueryParams = {
-      TableName: 'usercollection',
-      IndexName: 'email-index',
-      KeyConditionExpression: 'email = :emailValue',
-      ExpressionAttributeValues: {
-        ':emailValue': email,
-      },
-    };
-
-    const userResult = await docClient.send(new QueryCommand(userQueryParams));
-
-    if (!userResult.Items || userResult.Items.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = userResult.Items[0];
-    const userId = user?.userId;
-
-    // sign a local JWT using the shared secret
-    const token = jwt.sign({ userId: userId, email: email }, JWT_SECRET, {
-      expiresIn: '7d',
-    });
-
-    res.status(200).json({ token, IdToken, AccessToken, RefreshToken });
-  } catch (error) {
-    console.log('Error in /login:', error);
-    return res
-      .status(500)
-      .json({ message: 'Internal server error', details: error.message });
-  }
-});
-
-async function getIndexToRemove(userId, targetUserId) {
-  try {
-    const response = await docClient.send(
-      new GetCommand({
-        TableName: 'usercollection',
-        Key: { userId: userId },
-      }),
-    );
-
-    const likedProfiles = response?.Item?.likedProfiles || [];
-    const index = likedProfiles.findIndex(profile => profile === targetUserId);
-
-    console.log(`User ${userId} likedProfiles:`, likedProfiles);
-    console.log(`Finding ${targetUserId} in likedProfiles, index:`, index);
-
-    return index;
-  } catch (error) {
-    console.log('Error in getIndexToRemove:', error);
-    return -1;
-  }
-}
-///create-match endpoint
+// Create match endpoint
 app.post('/create-match', authenticateToken, async (req, res) => {
   try {
     console.log('Creating match...');
@@ -726,7 +692,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
     console.log('current', currentUserId);
     console.log('selected', selectedUserId);
 
-    // Get current user's receivedLikes
     const userResponse = await docClient.send(
       new GetCommand({
         TableName: 'usercollection',
@@ -742,7 +707,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
     const receivedLikes = userResponse.Item.receivedLikes || [];
     console.log('Received likes count:', receivedLikes.length);
 
-    // Find ALL indices of the selected user in receivedLikes
     const indicesToRemove = [];
     receivedLikes.forEach((like, index) => {
       if (like.userId === selectedUserId) {
@@ -758,7 +722,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
         .json({ message: 'Selected User not found in receivedLikes' });
     }
 
-    // Get the index to remove from selected user's likedProfiles
     const index = await getIndexToRemove(selectedUserId, currentUserId);
     console.log('Index to remove from likedProfiles:', index);
 
@@ -768,7 +731,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
         .json({ message: 'Current user not in likedProfiles' });
     }
 
-    // Add to matches and remove from likedProfiles for selected user
     const updateSelectedUser = await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
@@ -789,7 +751,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
     );
     console.log('Selected user updated');
 
-    // Add to matches for current user
     const updateCurrentUser = await docClient.send(
       new UpdateCommand({
         TableName: 'usercollection',
@@ -807,8 +768,6 @@ app.post('/create-match', authenticateToken, async (req, res) => {
     );
     console.log('Current user updated');
 
-    // Remove ALL interactions from receivedLikes for current user
-    // Remove from highest index to lowest to avoid index shifting issues
     const sortedIndices = indicesToRemove.sort((a, b) => b - a);
 
     for (const indexToRemove of sortedIndices) {
@@ -840,7 +799,7 @@ app.post('/create-match', authenticateToken, async (req, res) => {
   }
 });
 
-//get-matches
+// Get matches endpoint
 app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -861,7 +820,7 @@ app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
 
     const batchGetParams = {
       RequestItems: {
-        users: {
+        usercollection: {
           Keys: matches.map(matchId => ({ userId: matchId })),
           ProjectionExpression: 'userId, firstName, imageUrls, prompts',
         },
@@ -872,48 +831,20 @@ app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
       new BatchGetCommand(batchGetParams),
     );
 
-    const matchedUsers = matchResult?.Responses?.users || [];
+    const matchedUsers = matchResult?.Responses?.usercollection || [];
 
     res.status(200).json({ matches: matchedUsers });
   } catch (error) {
     console.log('Error getting matches', error);
+    res
+      .status(500)
+      .json({ message: 'Internal server error', error: error.message });
   }
 });
-server.listen(4000, () => {
-  console.log(' IO Server is running on port 4000');
-});
 
-//socket io
-const io = new Server(server);
+// ==================== MESSAGING ENDPOINTS ====================
 
-const userSocketMap = {};
-
-io.on('connection', socket => {
-  const userId = socket.handshake.query.userId;
-
-  if (userId !== undefined) {
-    userSocketMap[userId] = socket.id;
-  }
-
-  console.log('User socket data', userSocketMap);
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected', socket.id);
-    delete userSocketMap[userId];
-  });
-  socket.on('sendMessage', ({ senderId, receiverId, message }) => {
-    const receiverSocketId = userSocketMap[receiverId];
-
-    console.log('receiver ID', receiverId);
-
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('receiveMessage', {
-        senderId,
-        message,
-      });
-    }
-  });
-});
+// Send message endpoint
 app.post('/sendMessage', async (req, res) => {
   try {
     const { senderId, receiverId, message } = req.body;
@@ -940,7 +871,7 @@ app.post('/sendMessage', async (req, res) => {
 
     const receiverSocketId = userSocketMap[receiverId];
     if (receiverSocketId) {
-      console.log('Emitting new message to the reciever', receiverId);
+      console.log('Emitting new message to the receiver', receiverId);
       io.to(receiverSocketId).emit('newMessage', {
         senderId,
         receiverId,
@@ -953,14 +884,116 @@ app.post('/sendMessage', async (req, res) => {
     res.status(201).json({ message: 'Message sent successfully!' });
   } catch (error) {
     console.log('Error', error);
-    res.status(500).json({ message: 'internal server error' });
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
+
+// Get messages endpoint
+app.get('/get-messages', authenticateToken, async (req, res) => {
+  try {
+    const { userId, otherUserId } = req.query;
+
+    if (!userId || !otherUserId) {
+      return res.status(400).json({ error: 'Missing user IDs' });
+    }
+
+    const params = {
+      TableName: 'messages',
+      FilterExpression:
+        '(senderId = :userId AND receiverId = :otherUserId) OR (senderId = :otherUserId AND receiverId = :userId)',
+      ExpressionAttributeValues: {
+        ':userId': { S: userId },
+        ':otherUserId': { S: otherUserId },
+      },
+    };
+
+    const result = await dynamoDbClient.send(new ScanCommand(params));
+
+    const messages =
+      result.Items?.map(item => ({
+        messageId: item.messageId.S,
+        senderId: item.senderId.S,
+        receiverId: item.receiverId.S,
+        message: item.message.S,
+        timestamp: item.timestamp.S,
+      })) || [];
+
+    messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.status(200).json({ messages });
+  } catch (error) {
+    console.log('Error fetching messages:', error);
+    res
+      .status(500)
+      .json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+// ==================== HELPER FUNCTIONS ====================
+
+async function getIndexToRemove(userId, targetUserId) {
+  try {
+    const response = await docClient.send(
+      new GetCommand({
+        TableName: 'usercollection',
+        Key: { userId: userId },
+      }),
+    );
+
+    const likedProfiles = response?.Item?.likedProfiles || [];
+    const index = likedProfiles.findIndex(profile => profile === targetUserId);
+
+    console.log(`User ${userId} likedProfiles:`, likedProfiles);
+    console.log(`Finding ${targetUserId} in likedProfiles, index:`, index);
+
+    return index;
+  } catch (error) {
+    console.log('Error in getIndexToRemove:', error);
+    return -1;
+  }
+}
+
+// ==================== SOCKET.IO HANDLERS ====================
+
+io.on('connection', socket => {
+  const userId = socket.handshake.query.userId;
+
+  if (userId !== undefined) {
+    userSocketMap[userId] = socket.id;
+    console.log(`User ${userId} connected with socket ID: ${socket.id}`);
+  }
+
+  console.log('Active user sockets:', userSocketMap);
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected', socket.id);
+    if (userId) {
+      delete userSocketMap[userId];
+    }
+  });
+
+  socket.on('sendMessage', ({ senderId, receiverId, message }) => {
+    const receiverSocketId = userSocketMap[receiverId];
+
+    console.log('Receiver ID', receiverId);
+
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('receiveMessage', {
+        senderId,
+        message,
+      });
+    }
+  });
+});
+
+// ==================== SERVER START ====================
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(50));
   console.log('🚀 SERVER STARTED SUCCESSFULLY!');
   console.log('📍 Port:', PORT);
   console.log('🌍 Host: 0.0.0.0 (accessible from network)');
+  console.log('💬 Socket.IO server running on same port');
   console.log('⏰ Started at:', new Date().toISOString());
   console.log('='.repeat(50));
 });
