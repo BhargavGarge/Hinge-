@@ -20,7 +20,6 @@ type RootStackParamList = {
     image: string;
     name: string;
     receiverId: string;
-    senderId: string;
   };
 };
 
@@ -36,54 +35,137 @@ const UserChat = ({ item, userId }: UserChatProps) => {
     item.lastMessage ?? null,
   );
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const navigation = useNavigation<NavigationProp>();
   const { socket } = useSocketContext();
 
   useEffect(() => {
     fetchMessages();
-  }, []);
+  }, [item.userId, userId]);
+
+  // Listen for new messages to update last message in real-time
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (newMessage: Message) => {
+      // Check if this message is for this chat
+      if (
+        (newMessage.senderId === item.userId &&
+          newMessage.receiverId === userId) ||
+        (newMessage.senderId === userId &&
+          newMessage.receiverId === item.userId)
+      ) {
+        console.log('🔄 Updating last message via socket');
+        setLastMessage(newMessage);
+      }
+    };
+
+    socket.on('newMessage', handleNewMessage);
+    socket.on('receiveMessage', handleNewMessage);
+
+    return () => {
+      socket.off('newMessage', handleNewMessage);
+      socket.off('receiveMessage', handleNewMessage);
+    };
+  }, [socket, item.userId, userId]);
 
   const fetchMessages = async () => {
     try {
+      setIsRefreshing(true);
       const senderId = userId;
       const receiverId = item?.userId;
       if (!senderId || !receiverId) return;
 
-      const response = await axios.get<Message[]>(`${BASE_URL}/messages`, {
-        params: { senderId, receiverId },
-      });
+      console.log(`📨 Fetching messages for ${item.firstName}`);
 
-      if (response.data && response.data.length > 0) {
-        setLastMessage(response.data[response.data.length - 1]);
-        // Example placeholder for unread message logic
+      // Try multiple endpoints with proper error handling
+      let messages: Message[] = [];
+
+      try {
+        // First try the main endpoint
+        const response = await axios.get<Message[]>(`${BASE_URL}/messages`, {
+          params: { senderId, receiverId },
+        });
+        messages = response.data;
+      } catch (error) {
+        console.log('❌ Main endpoint failed, trying fallback...');
+        // Try fallback endpoint
+        try {
+          const fallbackResponse = await axios.get<Message[]>(
+            `${BASE_URL}/messages/${receiverId}`,
+            { params: { senderId } },
+          );
+          messages = fallbackResponse.data;
+        } catch (fallbackError) {
+          console.log('❌ Fallback endpoint also failed');
+          messages = [];
+        }
+      }
+
+      if (messages && messages.length > 0) {
+        const latestMessage = messages[messages.length - 1];
+        setLastMessage(latestMessage);
+        console.log(
+          `✅ Last message for ${item.firstName}:`,
+          latestMessage.message,
+        );
+
+        // Calculate unread count
+        const unreadMessages = messages.filter(
+          msg => msg.senderId === receiverId && !(msg as any).seen,
+        );
+        setUnreadCount(unreadMessages.length);
+      } else {
+        setLastMessage(null);
         setUnreadCount(0);
       }
     } catch (error) {
       console.log('Error fetching messages for user:', item?.userId, error);
+      setLastMessage(null);
+      setUnreadCount(0);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   const formatTimestamp = (timestamp?: string) => {
     if (!timestamp) return '';
-    const messageDate = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - messageDate.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    try {
+      const messageDate = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - messageDate.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
-    return messageDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m`;
+      if (diffHours < 24) return `${diffHours}h`;
+      if (diffDays < 7) return `${diffDays}d`;
+
+      return messageDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (error) {
+      return '';
+    }
   };
 
   const isMyMessage = lastMessage?.senderId === userId;
+
+  const getMessagePreview = () => {
+    if (!lastMessage) {
+      return `Say hi to ${item?.firstName ?? 'them'}!`;
+    }
+
+    if (isMyMessage) {
+      return `You: ${lastMessage.message}`;
+    }
+
+    return lastMessage.message || '';
+  };
 
   return (
     <Pressable
@@ -92,7 +174,6 @@ const UserChat = ({ item, userId }: UserChatProps) => {
           image: item?.imageUrls?.[0] ?? '',
           name: item?.firstName ?? '',
           receiverId: item?.userId ?? '',
-          senderId: userId,
         })
       }
       style={({ pressed }) => [
@@ -113,6 +194,7 @@ const UserChat = ({ item, userId }: UserChatProps) => {
               source={{
                 uri: item?.imageUrls?.[0] ?? 'https://via.placeholder.com/70',
               }}
+              defaultSource={{ uri: 'https://via.placeholder.com/70' }}
             />
           </View>
         </LinearGradient>
@@ -137,11 +219,11 @@ const UserChat = ({ item, userId }: UserChatProps) => {
               styles.lastMessage,
               !lastMessage && styles.placeholderMessage,
               !isMyMessage && lastMessage && styles.unreadMessage,
+              isRefreshing && styles.refreshingMessage,
             ]}
             numberOfLines={1}
           >
-            {isMyMessage && lastMessage && 'You: '}
-            {lastMessage?.message ?? `Say hi to ${item?.firstName ?? 'them'}!`}
+            {getMessagePreview()}
           </Text>
 
           {unreadCount > 0 && (
@@ -222,14 +304,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: '#1A1A1A',
     flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   timestamp: {
     fontSize: 13,
     color: '#999',
     fontWeight: '500',
     marginLeft: 8,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   messageRow: {
     flexDirection: 'row',
@@ -241,7 +321,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '400',
     flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   placeholderMessage: {
     color: '#999',
@@ -250,6 +329,9 @@ const styles = StyleSheet.create({
   unreadMessage: {
     color: '#1A1A1A',
     fontWeight: '600',
+  },
+  refreshingMessage: {
+    opacity: 0.7,
   },
   unreadBadge: {
     backgroundColor: '#FF6B9D',
@@ -265,7 +347,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
   chevronContainer: {
     marginLeft: 8,

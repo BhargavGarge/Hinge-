@@ -20,14 +20,14 @@ import {
 } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
+import { AuthContext } from '../../AuthContext';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import axios from 'axios';
 import { BASE_URL } from '../url/url';
-import { AuthContext } from '../../AuthContext';
 import { useSocketContext } from '../../SocketContext';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
-import type { Message } from '../../types'; // adjust to your type path
+import type { Message } from '../../types';
 
 type ChatRoomNavigationProp = NativeStackNavigationProp<any>;
 type ChatRoomRouteProp = RouteProp<
@@ -36,28 +36,24 @@ type ChatRoomRouteProp = RouteProp<
 >;
 
 const ChatRoom = () => {
-  // 🔹 Always call hooks in the same order — no conditions
   const navigation = useNavigation<ChatRoomNavigationProp>();
   const route = useRoute<ChatRoomRouteProp>();
-  const { userId } = useContext(AuthContext) || { userId: null };
-  const { socket } = useSocketContext() || { socket: null };
-
   const [message, setMessage] = useState<string>('');
+  const { userId } = useContext(AuthContext);
   const [messages, setMessages] = useState<Message[]>([]);
+  const { socket } = useSocketContext();
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // 🔹 Navigation Header
+  // Route params
+  const receiverId = route.params?.receiverId;
+  const receiverName = route.params?.name || 'Unknown';
+  const receiverImage = route.params?.image || 'https://via.placeholder.com/40';
+
+  // ✅ FIXED HEADER — shows username and back button
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerShown: true,
       headerTitle: '',
-      headerStyle: {
-        backgroundColor: '#FFFFFF',
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
       headerLeft: () => (
         <View style={styles.headerLeft}>
           <Pressable
@@ -66,108 +62,222 @@ const ChatRoom = () => {
           >
             <Ionicons name="chevron-back" size={28} color="#1A1A1A" />
           </Pressable>
-          <Image
-            source={{
-              uri: route.params?.image || 'https://via.placeholder.com/40',
-            }}
-            style={styles.headerAvatar}
-          />
-          <View>
-            <Text style={styles.headerName}>{route.params?.name}</Text>
-            <Text style={styles.headerStatus}>Active now</Text>
-          </View>
+          <Image source={{ uri: receiverImage }} style={styles.headerAvatar} />
+          <Text style={styles.headerName}>{receiverName}</Text>
         </View>
       ),
-      headerRight: () => (
-        <View style={styles.headerRight}>
-          <Pressable style={styles.headerIconButton}>
-            <Ionicons name="videocam" size={24} color="#FF6B9D" />
-          </Pressable>
-          <Pressable style={styles.headerIconButton}>
-            <Ionicons name="ellipsis-horizontal" size={24} color="#1A1A1A" />
-          </Pressable>
-        </View>
-      ),
+      headerStyle: {
+        backgroundColor: '#FFFFFF',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
     });
-  }, [navigation, route.params?.name, route.params?.image]);
+  }, [navigation, receiverName, receiverImage]);
 
-  // 🔹 Fetch messages safely
+  // Fetch messages - FIXED VERSION
   const fetchMessages = async (): Promise<void> => {
     try {
-      const senderId = userId;
-      const receiverId = route.params?.receiverId;
-      if (!senderId || !receiverId) return;
-
-      const response = await axios.get<Message[]>(`${BASE_URL}/messages`, {
-        params: { senderId, receiverId },
-      });
-
-      if (response.data) {
-        setMessages(response.data);
-      }
-    } catch (error) {
-      console.log('Error fetching messages:', error);
-    }
-  };
-
-  // 🔹 Send message
-  const sendMessage = async (): Promise<void> => {
-    try {
-      const senderId = userId;
-      const receiverId = route.params?.receiverId;
-
-      if (!message.trim() || !senderId || !receiverId) {
-        console.log('Missing message or user IDs');
+      if (!receiverId || !userId) {
+        console.log('❌ Missing receiverId or userId');
         return;
       }
 
-      const messageToSend = message;
+      console.log('🔍 Fetching messages for:', {
+        senderId: userId,
+        receiverId,
+      });
+
+      // Try the main endpoint first
+      const response = await axios.get(`${BASE_URL}/messages`, {
+        params: {
+          senderId: userId,
+          receiverId: receiverId,
+        },
+      });
+
+      console.log('✅ Messages fetched:', response.data.length);
+      setMessages(response.data);
+
+      // Scroll to bottom after messages are loaded
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error) {
+      console.log('❌ Error fetching messages from /messages:', error);
+
+      // Fallback: try the alternative endpoint
+      try {
+        console.log('🔄 Trying fallback endpoint...');
+        const fallbackResponse = await axios.get(
+          `${BASE_URL}/messages/${receiverId}`,
+          {
+            params: {
+              senderId: userId,
+            },
+          },
+        );
+
+        console.log('✅ Messages from fallback:', fallbackResponse.data.length);
+        setMessages(fallbackResponse.data);
+
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      } catch (fallbackError) {
+        console.log('❌ Error with fallback endpoint:', fallbackError);
+      }
+    }
+  };
+
+  // Send message - FIXED VERSION
+  const sendMessage = async (): Promise<void> => {
+    try {
+      const senderId = userId;
+      if (!message.trim() || !senderId || !receiverId) {
+        console.log('❌ Missing required fields for sending message');
+        return;
+      }
+
+      const messageToSend = message.trim();
+
+      // Create temporary message for immediate UI update
+      const tempMessage: Message = {
+        _id: `temp-${Date.now()}`,
+        senderId: senderId,
+        receiverId: receiverId,
+        message: messageToSend,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Immediately update UI with temporary message
+      setMessages(prev => [...prev, tempMessage]);
       setMessage('');
 
+      // Scroll to bottom
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+
+      // Send to backend
+      console.log('📤 Sending message:', messageToSend);
       await axios.post(`${BASE_URL}/sendMessage`, {
         senderId,
         receiverId,
         message: messageToSend,
       });
 
+      // Emit socket event
       socket?.emit('sendMessage', {
         senderId,
         receiverId,
         message: messageToSend,
       });
 
-      // Refresh messages
+      // Refresh messages to get the actual message from DB (replaces temp message)
       setTimeout(() => {
         fetchMessages();
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 200);
     } catch (error) {
-      console.log('Error sending message:', error);
+      console.log('❌ Error sending message', error);
+      // Remove temporary message if sending failed
+      setMessages(prev => prev.filter(msg => !msg._id?.startsWith('temp-')));
     }
   };
 
-  // 🔹 Initial fetch
   useEffect(() => {
-    fetchMessages();
-  }, []);
+    if (receiverId && userId) {
+      console.log('🚀 Initial message fetch');
+      fetchMessages();
+    }
+  }, [receiverId, userId]);
 
-  // 🔹 Listen for new socket messages
+  // Socket event listeners - FIXED VERSION
   useEffect(() => {
-    if (!socket) return;
+    console.log('🔌 Setting up socket listeners');
 
     const handleNewMessage = (newMessage: Message) => {
-      setMessages(prev => [...prev, { ...newMessage, shouldShake: true }]);
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      console.log('📨 New message via socket:', newMessage);
+
+      // Check if this message is for current chat
+      if (
+        (newMessage.senderId === receiverId &&
+          newMessage.receiverId === userId) ||
+        (newMessage.senderId === userId && newMessage.receiverId === receiverId)
+      ) {
+        setMessages(prev => {
+          // Avoid duplicates
+          const exists = prev.some(
+            msg =>
+              msg._id === newMessage._id ||
+              (msg.message === newMessage.message &&
+                msg.timestamp === newMessage.timestamp),
+          );
+
+          if (!exists) {
+            return [...prev, newMessage];
+          }
+          return prev;
+        });
+
+        // Scroll to bottom
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
     };
 
-    socket.on('newMessage', handleNewMessage);
+    const handleReceiveMessage = (data: {
+      senderId: string;
+      message: string;
+    }) => {
+      console.log('📨 Received message via socket:', data);
+
+      if (data.senderId === receiverId) {
+        const newMessage: Message = {
+          _id: `socket-${Date.now()}`,
+          senderId: data.senderId,
+          receiverId: userId,
+          message: data.message,
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages(prev => [...prev, newMessage]);
+
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    };
+
+    // Listen for both events
+    socket?.on('newMessage', handleNewMessage);
+    socket?.on('receiveMessage', handleReceiveMessage);
 
     return () => {
-      socket.off('newMessage', handleNewMessage);
+      console.log('🧹 Cleaning up socket listeners');
+      socket?.off('newMessage', handleNewMessage);
+      socket?.off('receiveMessage', handleReceiveMessage);
     };
-  }, [socket]);
+  }, [socket, receiverId, userId]);
 
-  const keyboardVerticalOffset = Platform.OS === 'ios' ? 65 : 0;
+  const formatTime = (timestamp?: string) => {
+    if (!timestamp) return '';
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch (error) {
+      return '';
+    }
+  };
+
+  const keyboardVerticalOffset = Platform.OS === 'ios' ? 90 : 0;
 
   return (
     <KeyboardAvoidingView
@@ -179,49 +289,32 @@ const ChatRoom = () => {
         ref={scrollViewRef}
         contentContainerStyle={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() =>
-          scrollViewRef.current?.scrollToEnd({ animated: true })
-        }
+        onContentSizeChange={() => {
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }}
       >
-        {messages.map((item, index) => {
+        {messages?.map((item, index) => {
           const isMyMessage = item.senderId === userId;
-          const showTimestamp =
-            index === 0 ||
-            new Date(item.timestamp || '').getTime() -
-              new Date(messages[index - 1]?.timestamp || '').getTime() >
-              300000;
+          const isTempMessage = item._id?.startsWith('temp-');
 
           return (
-            <View key={item._id || index}>
-              {showTimestamp && item.timestamp && (
-                <View style={styles.timestampContainer}>
-                  <Text style={styles.timestampText}>
-                    {new Date(item.timestamp).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
+            <View
+              key={item._id || `msg-${index}`}
+              style={[
+                styles.messageRow,
+                isMyMessage ? styles.myMessageRow : styles.theirMessageRow,
+              ]}
+            >
+              {!isMyMessage && (
+                <Image
+                  source={{ uri: receiverImage }}
+                  style={styles.messageAvatar}
+                />
               )}
 
-              <View
-                style={[
-                  styles.messageRow,
-                  isMyMessage ? styles.myMessageRow : styles.theirMessageRow,
-                ]}
-              >
-                {!isMyMessage && (
-                  <Image
-                    source={{
-                      uri:
-                        route.params?.image || 'https://via.placeholder.com/32',
-                    }}
-                    style={styles.messageAvatar}
-                  />
-                )}
-
+              <View style={styles.messageContent}>
                 {isMyMessage ? (
                   <LinearGradient
                     colors={['#FF6B9D', '#C06C84']}
@@ -230,16 +323,39 @@ const ChatRoom = () => {
                     style={[styles.messageBubble, styles.myMessage]}
                   >
                     <Text style={styles.myMessageText}>{item.message}</Text>
+                    {item.timestamp && (
+                      <Text style={styles.timestampText}>
+                        {formatTime(item.timestamp)}
+                      </Text>
+                    )}
+                    {isTempMessage && (
+                      <View style={styles.sendingIndicator}>
+                        <Text style={styles.sendingText}>Sending...</Text>
+                      </View>
+                    )}
                   </LinearGradient>
                 ) : (
                   <View style={[styles.messageBubble, styles.theirMessage]}>
                     <Text style={styles.theirMessageText}>{item.message}</Text>
+                    {item.timestamp && (
+                      <Text style={styles.timestampText}>
+                        {formatTime(item.timestamp)}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
             </View>
           );
         })}
+
+        {messages.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              No messages yet. Start the conversation!
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.inputContainer}>
@@ -256,6 +372,8 @@ const ChatRoom = () => {
             style={styles.input}
             multiline
             maxLength={500}
+            onSubmitEditing={sendMessage}
+            returnKeyType="send"
           />
 
           <Pressable style={styles.inputIconButton}>
@@ -301,42 +419,54 @@ const styles = StyleSheet.create({
     gap: 8,
     marginLeft: 8,
   },
-  backButton: { marginRight: 4 },
+  backButton: {
+    marginRight: 4,
+  },
   headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     borderColor: '#FF6B9D',
   },
-  headerName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
-  headerStatus: { fontSize: 12, color: '#4CAF50', fontWeight: '500' },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginRight: 12,
+  headerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginLeft: 6,
   },
-  headerIconButton: { padding: 4 },
   messagesContainer: {
     flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+    minHeight: '100%',
   },
-  timestampContainer: { alignItems: 'center', marginVertical: 16 },
-  timestampText: {
-    fontSize: 12,
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    fontSize: 16,
     color: '#999',
-    fontWeight: '500',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    textAlign: 'center',
   },
-  messageRow: { flexDirection: 'row', marginBottom: 8, alignItems: 'flex-end' },
-  myMessageRow: { justifyContent: 'flex-end' },
-  theirMessageRow: { justifyContent: 'flex-start' },
+  messageRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-end',
+  },
+  myMessageRow: {
+    justifyContent: 'flex-end',
+  },
+  theirMessageRow: {
+    justifyContent: 'flex-start',
+  },
+  messageContent: {
+    maxWidth: '80%',
+  },
   messageAvatar: {
     width: 32,
     height: 32,
@@ -346,20 +476,48 @@ const styles = StyleSheet.create({
     borderColor: '#FF6B9D',
   },
   messageBubble: {
-    maxWidth: '75%',
+    maxWidth: '100%',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 20,
-    elevation: 1,
+    marginBottom: 4,
+  },
+  myMessage: {
+    borderBottomRightRadius: 4,
+  },
+  theirMessage: {
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    elevation: 2,
   },
-  myMessage: { borderBottomRightRadius: 4 },
-  theirMessage: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4 },
-  myMessageText: { fontSize: 15, color: '#FFFFFF', lineHeight: 20 },
-  theirMessageText: { fontSize: 15, color: '#1A1A1A', lineHeight: 20 },
+  myMessageText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    lineHeight: 20,
+  },
+  theirMessageText: {
+    fontSize: 16,
+    color: '#1A1A1A',
+    lineHeight: 20,
+  },
+  timestampText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  sendingIndicator: {
+    marginTop: 4,
+  },
+  sendingText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    fontStyle: 'italic',
+  },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -368,7 +526,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E8E8E8',
-    marginBottom: Platform.OS === 'ios' ? 0 : 30,
+    marginBottom: Platform.OS === 'ios' ? 0 : 70,
     gap: 8,
   },
   inputWrapper: {
@@ -381,10 +539,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 4,
   },
-  inputIconButton: { padding: 6 },
+  inputIconButton: {
+    padding: 6,
+  },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: '#1A1A1A',
     maxHeight: 100,
     paddingVertical: 8,
@@ -393,11 +553,11 @@ const styles = StyleSheet.create({
   sendButtonContainer: {
     borderRadius: 24,
     overflow: 'hidden',
-    elevation: 2,
     shadowColor: '#FF6B9D',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+    elevation: 3,
   },
   sendButton: {
     width: 48,

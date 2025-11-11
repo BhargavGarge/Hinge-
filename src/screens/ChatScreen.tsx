@@ -10,12 +10,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useContext, useState, useEffect } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { AuthContext } from '../../AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { BASE_URL } from '../url/url';
 import LinearGradient from 'react-native-linear-gradient';
 import UserChat from '../components/UserChat';
+import { useSocketContext } from '../../SocketContext';
 
 // Define types
 export interface Match {
@@ -26,6 +28,7 @@ export interface Match {
 }
 
 export interface Message {
+  _id?: string;
   senderId: string;
   receiverId?: string;
   message?: string;
@@ -49,9 +52,12 @@ const ChatScreen = () => {
     yourTurn: [],
     theirTurn: [],
   });
+  const { socket } = useSocketContext();
+  const isFocused = useIsFocused();
 
   const fetchMatches = async () => {
     try {
+      console.log('🔍 Fetching matches for user:', userId);
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         console.log('No token found');
@@ -64,7 +70,7 @@ const ChatScreen = () => {
         },
       });
 
-      console.log('Matches response:', response.data);
+      console.log('✅ Matches response:', response.data);
       setMatches(response.data.matches || []);
     } catch (error) {
       console.log('Error fetching matches:', error);
@@ -73,37 +79,50 @@ const ChatScreen = () => {
       setIsLoading(false);
     }
   };
-
+  // In ChatScreen.tsx - update the fetchAndCategorizeChats function
   const fetchAndCategorizeChats = async () => {
     if (!matches.length) {
+      console.log('ℹ️ No matches to categorize');
       setCategorizedChats({ yourTurn: [], theirTurn: [] });
       return;
     }
+
+    console.log(`🔄 Categorizing ${matches.length} matches`);
 
     const yourTurn: ChatItem[] = [];
     const theirTurn: ChatItem[] = [];
 
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) return;
-
       await Promise.all(
         matches.map(async (item: Match) => {
           try {
-            const response = await axios.get<Message[]>(
-              `${BASE_URL}/messages`,
-              {
-                params: {
-                  senderId: userId,
-                  receiverId: item.userId,
-                },
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              },
-            );
+            console.log(`📨 Fetching messages for match: ${item.userId}`);
 
-            const messages = response.data || [];
+            let messages: Message[] = [];
+
+            // Try multiple endpoints
+            try {
+              const response = await axios.get<Message[]>(
+                `${BASE_URL}/messages`,
+                {
+                  params: { senderId: userId, receiverId: item.userId },
+                },
+              );
+              messages = response.data || [];
+            } catch (error) {
+              console.log('❌ Main endpoint failed, trying fallback...');
+              try {
+                const fallbackResponse = await axios.get<Message[]>(
+                  `${BASE_URL}/messages/${item.userId}`,
+                  { params: { senderId: userId } },
+                );
+                messages = fallbackResponse.data || [];
+              } catch (fallbackError) {
+                console.log('❌ Both endpoints failed for user:', item.userId);
+                messages = [];
+              }
+            }
+
             const lastMessage =
               messages.length > 0 ? messages[messages.length - 1] : null;
 
@@ -112,27 +131,104 @@ const ChatScreen = () => {
               lastMessage,
             };
 
-            if (lastMessage?.senderId === userId) {
-              theirTurn.push(chatItem);
+            // Improved categorization logic
+            if (lastMessage) {
+              if (lastMessage.senderId === userId) {
+                // I sent the last message - waiting for their reply (Their Turn)
+                theirTurn.push(chatItem);
+              } else {
+                // They sent the last message - my turn to reply (Your Turn)
+                yourTurn.push(chatItem);
+              }
             } else {
+              // No messages yet - put in "Your Turn" to start conversation
               yourTurn.push(chatItem);
             }
+
+            console.log(`💬 Match ${item.firstName}:`, {
+              lastMessage: lastMessage?.message,
+              sender: lastMessage?.senderId === userId ? 'me' : 'them',
+              category:
+                lastMessage?.senderId === userId ? 'theirTurn' : 'yourTurn',
+            });
           } catch (error) {
             console.log(
               'Error fetching messages for user:',
               item.userId,
               error,
             );
-            yourTurn.push({ ...item });
+            // If error, put in "Your Turn" by default
+            yourTurn.push({ ...item, lastMessage: null });
           }
         }),
       );
 
-      setCategorizedChats({ yourTurn, theirTurn });
+      console.log(
+        `✅ Categorized: ${yourTurn.length} your turn, ${theirTurn.length} their turn`,
+      );
+
+      // Sort by timestamp (most recent first)
+      const sortByTimestamp = (a: ChatItem, b: ChatItem) => {
+        const timeA = a.lastMessage?.timestamp
+          ? new Date(a.lastMessage.timestamp).getTime()
+          : 0;
+        const timeB = b.lastMessage?.timestamp
+          ? new Date(b.lastMessage.timestamp).getTime()
+          : 0;
+        return timeB - timeA;
+      };
+
+      setCategorizedChats({
+        yourTurn: yourTurn.sort(sortByTimestamp),
+        theirTurn: theirTurn.sort(sortByTimestamp),
+      });
     } catch (error) {
       console.log('Error categorizing chats:', error);
     }
   };
+  // Listen for new messages via socket to update in real-time
+  useEffect(() => {
+    if (!socket || !userId) return;
+
+    console.log('🔌 Setting up socket listener for ChatScreen');
+
+    const handleNewMessage = (newMessage: Message) => {
+      console.log('📨 New message received in ChatScreen:', newMessage);
+
+      // Check if this message is relevant to our matches
+      const isRelevant = matches.some(
+        match =>
+          match.userId === newMessage.senderId ||
+          match.userId === newMessage.receiverId,
+      );
+
+      if (isRelevant) {
+        console.log('🔄 Refreshing chats due to new message');
+        // Refresh the chats to get updated last messages
+        setTimeout(() => {
+          if (matches.length > 0) {
+            fetchAndCategorizeChats();
+          }
+        }, 500);
+      }
+    };
+
+    socket.on('newMessage', handleNewMessage);
+    socket.on('receiveMessage', handleNewMessage);
+
+    return () => {
+      socket.off('newMessage', handleNewMessage);
+      socket.off('receiveMessage', handleNewMessage);
+    };
+  }, [socket, userId, matches]);
+
+  // Refresh when screen comes into focus
+  useEffect(() => {
+    if (isFocused && userId) {
+      console.log('🎯 ChatScreen focused, refreshing data...');
+      fetchMatches();
+    }
+  }, [isFocused, userId]);
 
   useEffect(() => {
     if (userId) {
@@ -159,6 +255,9 @@ const ChatScreen = () => {
     );
   }
 
+  const totalMatches =
+    categorizedChats.yourTurn.length + categorizedChats.theirTurn.length;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -167,10 +266,7 @@ const ChatScreen = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Matches</Text>
         <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>
-            {categorizedChats.yourTurn.length +
-              categorizedChats.theirTurn.length}
-          </Text>
+          <Text style={styles.headerBadgeText}>{totalMatches}</Text>
         </View>
       </View>
 
@@ -178,10 +274,11 @@ const ChatScreen = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={undefined} // You can add pull-to-refresh here if needed
       >
-        {matches.length > 0 ? (
+        {totalMatches > 0 ? (
           <View style={styles.matchesContainer}>
-            {/* Your Turn Section */}
+            {/* Your Turn Section - You need to reply */}
             {categorizedChats.yourTurn.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
@@ -199,7 +296,7 @@ const ChatScreen = () => {
                 </View>
                 {categorizedChats.yourTurn.map((item, index) => (
                   <UserChat
-                    key={item.userId || index.toString()}
+                    key={item.userId || `your-turn-${index}`}
                     item={item}
                     userId={userId!}
                   />
@@ -207,7 +304,7 @@ const ChatScreen = () => {
               </View>
             )}
 
-            {/* Their Turn Section */}
+            {/* Their Turn Section - Waiting for their reply */}
             {categorizedChats.theirTurn.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
@@ -220,7 +317,7 @@ const ChatScreen = () => {
                 </View>
                 {categorizedChats.theirTurn.map((item, index) => (
                   <UserChat
-                    key={item.userId || index.toString()}
+                    key={item.userId || `their-turn-${index}`}
                     item={item}
                     userId={userId!}
                   />
