@@ -799,10 +799,11 @@ app.post('/create-match', authenticateToken, async (req, res) => {
   }
 });
 
-// Get matches endpoint
+// Get matches endpoint - FIXED VERSION
 app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
+    console.log('🔍 Fetching matches for user:', userId);
 
     const userResult = await docClient.send(
       new GetCommand({
@@ -812,9 +813,18 @@ app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
       }),
     );
 
+    console.log('📦 Raw user data:', JSON.stringify(userResult, null, 2));
+
+    if (!userResult.Item) {
+      console.log('❌ User not found');
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const matches = userResult?.Item?.matches || [];
+    console.log('💫 Found matches array:', matches);
 
     if (!matches.length) {
+      console.log('ℹ️ No matches found for user');
       return res.status(200).json({ matches: [] });
     }
 
@@ -827,15 +837,23 @@ app.get('/get-matches/:userId', authenticateToken, async (req, res) => {
       },
     };
 
+    console.log(
+      '🔄 Batch get params:',
+      JSON.stringify(batchGetParams, null, 2),
+    );
+
     const matchResult = await docClient.send(
       new BatchGetCommand(batchGetParams),
     );
 
+    console.log('📦 Batch get result:', JSON.stringify(matchResult, null, 2));
+
     const matchedUsers = matchResult?.Responses?.usercollection || [];
+    console.log('✨ Final matched users:', matchedUsers);
 
     res.status(200).json({ matches: matchedUsers });
   } catch (error) {
-    console.log('Error getting matches', error);
+    console.log('❌ Error getting matches:', error);
     res
       .status(500)
       .json({ message: 'Internal server error', error: error.message });
@@ -888,44 +906,184 @@ app.post('/sendMessage', async (req, res) => {
   }
 });
 
-// Get messages endpoint
-app.get('/get-messages', authenticateToken, async (req, res) => {
+// Get messages endpoint - FIXED VERSION
+app.get('/messages', async (req, res) => {
   try {
-    const { userId, otherUserId } = req.query;
+    const { senderId, receiverId } = req.query;
 
-    if (!userId || !otherUserId) {
-      return res.status(400).json({ error: 'Missing user IDs' });
+    console.log('🔍 Fetching messages between:', { senderId, receiverId });
+
+    if (!senderId || !receiverId) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const params = {
+    // Use DynamoDBDocumentClient (docClient) instead of raw DynamoDBClient
+    // This handles the type conversions automatically
+
+    // Query messages where senderId = current user and receiverId = other user
+    const sentMessagesParams = {
       TableName: 'messages',
-      FilterExpression:
-        '(senderId = :userId AND receiverId = :otherUserId) OR (senderId = :otherUserId AND receiverId = :userId)',
+      KeyConditionExpression: 'senderId = :senderId',
+      FilterExpression: 'receiverId = :receiverId',
       ExpressionAttributeValues: {
-        ':userId': { S: userId },
-        ':otherUserId': { S: otherUserId },
+        ':senderId': senderId,
+        ':receiverId': receiverId,
       },
     };
 
-    const result = await dynamoDbClient.send(new ScanCommand(params));
+    // Query messages where senderId = other user and receiverId = current user
+    const receivedMessagesParams = {
+      TableName: 'messages',
+      KeyConditionExpression: 'senderId = :senderId',
+      FilterExpression: 'receiverId = :receiverId',
+      ExpressionAttributeValues: {
+        ':senderId': receiverId,
+        ':receiverId': senderId,
+      },
+    };
 
-    const messages =
-      result.Items?.map(item => ({
-        messageId: item.messageId.S,
-        senderId: item.senderId.S,
-        receiverId: item.receiverId.S,
-        message: item.message.S,
-        timestamp: item.timestamp.S,
-      })) || [];
+    console.log('🔄 Querying sent messages...');
+    const sentMessagesResult = await docClient.send(
+      new QueryCommand(sentMessagesParams),
+    );
 
-    messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    console.log('🔄 Querying received messages...');
+    const receivedMessagesResult = await docClient.send(
+      new QueryCommand(receivedMessagesParams),
+    );
 
-    res.status(200).json({ messages });
+    const sentMessages = sentMessagesResult.Items || [];
+    const receivedMessages = receivedMessagesResult.Items || [];
+
+    console.log(`💬 Found ${sentMessages.length} sent messages`);
+    console.log(`💬 Found ${receivedMessages.length} received messages`);
+
+    // Combine and sort all messages by timestamp
+    const allMessages = [...sentMessages, ...receivedMessages]
+      .map(item => ({
+        messageId: item.messageId,
+        senderId: item.senderId,
+        receiverId: item.receiverId,
+        message: item.message,
+        timestamp: item.timestamp,
+      }))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    console.log(`✨ Returning ${allMessages.length} total messages`);
+
+    res.status(200).json(allMessages);
   } catch (error) {
-    console.log('Error fetching messages:', error);
-    res
-      .status(500)
-      .json({ message: 'Internal server error', error: error.message });
+    console.log('❌ Error fetching messages:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+});
+
+// Alternative messages endpoint using scan (if query doesn't work)
+app.get('/messages-scan', async (req, res) => {
+  try {
+    const { senderId, receiverId } = req.query;
+
+    console.log('🔍 Fetching messages via scan between:', {
+      senderId,
+      receiverId,
+    });
+
+    if (!senderId || !receiverId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const scanParams = {
+      TableName: 'messages',
+      FilterExpression:
+        '(senderId = :senderId AND receiverId = :receiverId) OR (senderId = :receiverId AND receiverId = :senderId)',
+      ExpressionAttributeValues: {
+        ':senderId': senderId,
+        ':receiverId': receiverId,
+      },
+    };
+
+    const result = await docClient.send(new ScanCommand(scanParams));
+    const messages = result.Items || [];
+
+    console.log(`✨ Found ${messages.length} messages via scan`);
+
+    // Sort messages by timestamp
+    const sortedMessages = messages
+      .map(item => ({
+        messageId: item.messageId,
+        senderId: item.senderId,
+        receiverId: item.receiverId,
+        message: item.message,
+        timestamp: item.timestamp,
+      }))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.status(200).json(sortedMessages);
+  } catch (error) {
+    console.log('❌ Error fetching messages via scan:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+});
+
+// Get messages for specific user endpoint
+app.get('/messages/:receiverId', async (req, res) => {
+  try {
+    const { receiverId } = req.params;
+    const { senderId } = req.query;
+
+    console.log(
+      '🔍 Fetching messages for receiver:',
+      receiverId,
+      'sender:',
+      senderId,
+    );
+
+    if (!senderId) {
+      return res.status(400).json({ error: 'senderId is required' });
+    }
+
+    // Use scan as a fallback
+    const scanParams = {
+      TableName: 'messages',
+      FilterExpression:
+        '(senderId = :senderId AND receiverId = :receiverId) OR (senderId = :receiverId AND receiverId = :senderId)',
+      ExpressionAttributeValues: {
+        ':senderId': senderId,
+        ':receiverId': receiverId,
+      },
+    };
+
+    const result = await docClient.send(new ScanCommand(scanParams));
+    const messages = result.Items || [];
+
+    console.log(`✨ Found ${messages.length} messages`);
+
+    // Sort messages by timestamp
+    const sortedMessages = messages
+      .map(item => ({
+        _id: item.messageId,
+        messageId: item.messageId,
+        senderId: item.senderId,
+        receiverId: item.receiverId,
+        message: item.message,
+        timestamp: item.timestamp,
+      }))
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    res.status(200).json(sortedMessages);
+  } catch (error) {
+    console.log('❌ Error fetching messages:', error);
+    res.status(500).json({
+      message: 'Internal server error',
+      error: error.message,
+    });
   }
 });
 
