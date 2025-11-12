@@ -32,6 +32,7 @@ import PreFinalScreen from '../screens/PreFinalScreen';
 import DatingType from '../screens/DatingTypeScreen';
 import HandleLikeScreen from '../screens/HandleLikeScreen';
 import ChatRoom from '../screens/ChatRoom';
+import SubscriptionScreen from '../screens/SubscriptionScreen';
 
 // import all your screens as before...
 
@@ -140,9 +141,28 @@ const StackNavigator = () => {
   const MainStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={BottomTabs} />
-      <Stack.Screen name="SendLike" component={SendLikeScreen} />
-      <Stack.Screen name="HandleLike" component={HandleLikeScreen} />
+      <Stack.Screen
+        name="SendLike"
+        component={SendLikeScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="HandleLike"
+        component={HandleLikeScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
       <Stack.Screen name="ChatRoom" component={ChatRoom} />
+      <Stack.Screen
+        name="Subscription"
+        component={SubscriptionScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack.Navigator>
   );
 
